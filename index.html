@@ -11,9 +11,23 @@ html,body{width:100%;height:100%;overflow:hidden;touch-action:pan-x pan-y;-webki
 body{color:#fff;display:flex;justify-content:center;align-items:stretch;padding:8px;background:#070b12;background-image:radial-gradient(circle at 15% 15%, rgba(59,130,246,.25), transparent 45%),radial-gradient(circle at 85% 10%, rgba(139,92,246,.22), transparent 45%),radial-gradient(circle at 80% 90%, rgba(16,185,129,.18), transparent 50%),radial-gradient(circle at 10% 85%, rgba(236,72,153,.15), transparent 50%),linear-gradient(160deg, #070b12 0%, #0b1220 40%, #0a0f18 70%, #060a10 100%)}
 body::before{content:'';position:fixed;inset:0;background-image:radial-gradient(rgba(255,255,255,.06) 1px, transparent 1px);background-size:22px 22px;opacity:.35;pointer-events:none;z-index:0}
 body::after{content:'';position:fixed;inset:0;background:linear-gradient(180deg, rgba(0,0,0,.15) 0%, rgba(0,0,0,.45) 100%);pointer-events:none;z-index:0}
+
+/* === PULL TO REFRESH INDICATOR === */
+#ptrIndicator{position:fixed;top:0;left:50%;transform:translateX(-50%) translateY(-100%);z-index:9999;background:rgba(59,130,246,.95);color:#fff;padding:8px 20px;border-radius:0 0 16px 16px;font-size:12px;font-weight:800;display:flex;align-items:center;gap:8px;transition:transform .2s ease;box-shadow:0 4px 16px rgba(0,0,0,.5);pointer-events:none;backdrop-filter:blur(10px)}
+#ptrIndicator.show{transform:translateX(-50%) translateY(0)}
+#ptrIndicator.ready{background:rgba(16,185,129,.95)}
+.ptrSpinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin 0.8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
 .glass, .wm { position:relative; z-index:1; }
 .glass{background:rgba(15,22,32,.72);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);border:1px solid rgba(255,255,255,.12);border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.06);width:100%;max-width:480px;padding:14px;display:flex;flex-direction:column;height:100%;max-height:100%;overflow:hidden}
-.top{display:flex;justify-content:flex-start;align-items:center;gap:10px;margin-bottom:10px;flex-shrink:0}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;flex-shrink:0}
+.topLeft{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
+.topRight{display:flex;gap:6px;flex-shrink:0}
+.iconBtn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:#fff;width:34px;height:34px;border-radius:10px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:.25s;flex-shrink:0}
+.iconBtn:hover{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.3)}
+.iconBtn:active{transform:scale(0.92)}
+.iconBtn.spinning{animation:spin 1s linear infinite}
 .brandLogo{height:38px;width:auto;display:block;flex-shrink:0}
 .brandName{font-size:18px;font-weight:900;letter-spacing:.3px;background:linear-gradient(90deg,#4fc3f7,#8b5cf6);-webkit-background-clip:text;background-clip:text;color:transparent;white-space:nowrap;line-height:1.1}
 .brandTag{font-size:9px;opacity:.6;font-weight:600;letter-spacing:.5px;margin-top:2px}
@@ -94,13 +108,25 @@ body::after{content:'';position:fixed;inset:0;background:linear-gradient(180deg,
 .chatQuick button{background:rgba(140,140,150,.15);border:1px solid rgba(255,255,255,.18);color:rgba(255,255,255,.85);padding:4px 8px;border-radius:20px;font-size:9px;font-weight:700;cursor:pointer;transition:.2s}
 .chatQuick button:hover{background:rgba(160,160,170,.28)}
 .chatMsg .status{font-size:9px;opacity:.65;margin-bottom:3px;font-style:italic}
+
+/* === TOAST NOTIFICATION === */
+#toast{position:fixed;top:60px;left:50%;transform:translateX(-50%) translateY(-100px);background:rgba(16,185,129,.95);color:#fff;padding:10px 18px;border-radius:12px;font-size:12px;font-weight:700;z-index:99999;transition:transform .3s ease;box-shadow:0 8px 24px rgba(0,0,0,.5);pointer-events:none;max-width:90%;text-align:center}
+#toast.show{transform:translateX(-50%) translateY(0)}
+#toast.error{background:rgba(239,68,68,.95)}
+#toast.info{background:rgba(59,130,246,.95)}
 </style>
 </head>
 <body>
 
+<div id="ptrIndicator">
+  <div class="ptrSpinner"></div>
+  <span id="ptrText">Tarik untuk refresh</span>
+</div>
+
+<div id="toast"></div>
+
 <svg style="display:none">
   <symbol id="flLogo" viewBox="0 0 400 260">
-    <!-- Icon: Filter lab (tabung reaksi + tetesan) -->
     <g transform="translate(140, 30)">
       <rect x="30" y="0" width="60" height="20" rx="4" fill="none" stroke="#4fc3f7" stroke-width="6"/>
       <path d="M 40 20 L 40 100 Q 40 130 70 130 Q 100 130 100 100 L 100 20" fill="none" stroke="#4fc3f7" stroke-width="6" stroke-linejoin="round"/>
@@ -109,14 +135,12 @@ body::after{content:'';position:fixed;inset:0;background:linear-gradient(180deg,
       <circle cx="80" cy="105" r="4" fill="#4fc3f7" opacity=".9"/>
       <circle cx="70" cy="115" r="3" fill="#4fc3f7" opacity=".9"/>
     </g>
-    <!-- Tetesan filter -->
     <g transform="translate(60, 60)">
       <path d="M 20 0 Q 40 30 40 50 Q 40 70 20 70 Q 0 70 0 50 Q 0 30 20 0 Z" fill="none" stroke="#8b5cf6" stroke-width="5"/>
     </g>
     <g transform="translate(310, 60)">
       <path d="M 20 0 Q 40 30 40 50 Q 40 70 20 70 Q 0 70 0 50 Q 0 30 20 0 Z" fill="none" stroke="#8b5cf6" stroke-width="5"/>
     </g>
-    <!-- Teks FilterLab -->
     <defs>
       <linearGradient id="gradFL" x1="0" y1="0" x2="1" y2="1">
         <stop offset="0" stop-color="#4fc3f7"/>
@@ -130,10 +154,16 @@ body::after{content:'';position:fixed;inset:0;background:linear-gradient(180deg,
 
 <div class="glass">
 <div class="top">
-  <svg class="brandLogo" viewBox="0 0 400 260"><use href="#flLogo"/></svg>
-  <div>
-    <div class="brandName">FilterLab</div>
-    <div class="brandTag">Efek & Filter Foto</div>
+  <div class="topLeft">
+    <svg class="brandLogo" viewBox="0 0 400 260"><use href="#flLogo"/></svg>
+    <div>
+      <div class="brandName">FilterLab</div>
+      <div class="brandTag">Efek & Filter Foto</div>
+    </div>
+  </div>
+  <div class="topRight">
+    <button class="iconBtn" id="refreshBtn" onclick="manualRefresh()" title="Refresh">🔄</button>
+    <button class="iconBtn" onclick="resetAll()" title="Reset">🗑</button>
   </div>
 </div>
 
@@ -239,7 +269,9 @@ Saya hanya dapat menjalankan perintah EDIT FOTO, bukan mengobrol bebas. Silakan 
 • Buat nuansa golden hour
 
 📋 Lihat semua perintah:
-Ketik "tampilkan semua perintah"</div>
+Ketik "tampilkan semua perintah"
+
+💡 Tips: Tarik layar ke bawah untuk refresh web.</div>
     </div>
   </div>
   <div class="chatQuick" id="chatQuick">
@@ -263,11 +295,100 @@ Ketik "tampilkan semua perintah"</div>
 <div class="wm">Developer By Alipp</div>
 
 <script>
+/* =========================================================
+   ANTI ZOOM + PULL TO REFRESH
+   ========================================================= */
 document.addEventListener('touchmove', e=>{ if(e.touches.length>1) e.preventDefault(); }, {passive:false});
 document.addEventListener('wheel', e=>{ if(e.ctrlKey) e.preventDefault(); }, {passive:false});
 document.addEventListener('keydown', e=>{ if((e.ctrlKey||e.metaKey) && ['+','-','=','0'].includes(e.key)) e.preventDefault(); });
 ['gesturestart','gesturechange','gestureend'].forEach(ev=>document.addEventListener(ev,e=>e.preventDefault()));
 
+/* ===== PULL TO REFRESH ===== */
+let ptrStartY = 0, ptrCurrentY = 0, ptrActive = false;
+const ptrIndicator = document.getElementById('ptrIndicator');
+const ptrText = document.getElementById('ptrText');
+const PTR_THRESHOLD = 80;
+
+document.addEventListener('touchstart', e=>{
+  if(e.touches.length !== 1) return;
+  const scrollable = e.target.closest('.chatWindow, .page-scroll');
+  if(scrollable && scrollable.scrollTop > 0) return;
+  if(!scrollable && document.body.scrollTop > 0) return;
+  ptrStartY = e.touches[0].clientY;
+  ptrActive = true;
+  ptrCurrentY = 0;
+}, {passive:true});
+
+document.addEventListener('touchmove', e=>{
+  if(!ptrActive || e.touches.length !== 1) return;
+  ptrCurrentY = e.touches[0].clientY - ptrStartY;
+  if(ptrCurrentY > 0){
+    const scrollable = e.target.closest('.chatWindow, .page-scroll');
+    if(scrollable && scrollable.scrollTop > 0){ ptrActive = false; ptrIndicator.classList.remove('show'); return; }
+    const pull = Math.min(ptrCurrentY * 0.5, 100);
+    ptrIndicator.style.transform = `translateX(-50%) translateY(${-100 + pull}%)`;
+    if(ptrCurrentY > PTR_THRESHOLD){
+      ptrIndicator.classList.add('ready');
+      ptrText.textContent = 'Lepaskan untuk refresh';
+    } else {
+      ptrIndicator.classList.remove('ready');
+      ptrText.textContent = 'Tarik untuk refresh';
+    }
+  }
+}, {passive:true});
+
+document.addEventListener('touchend', e=>{
+  if(!ptrActive) return;
+  ptrActive = false;
+  if(ptrCurrentY > PTR_THRESHOLD){
+    ptrText.textContent = 'Memuat ulang...';
+    ptrIndicator.classList.add('show');
+    ptrIndicator.classList.add('ready');
+    setTimeout(()=>{ location.reload(); }, 300);
+  } else {
+    ptrIndicator.style.transform = 'translateX(-50%) translateY(-100%)';
+    setTimeout(()=>{ ptrIndicator.classList.remove('show','ready'); }, 300);
+  }
+  ptrCurrentY = 0;
+}, {passive:true});
+
+/* ===== REFRESH BUTTON ===== */
+let isRendering = false;
+
+function manualRefresh(){
+  if(isRendering){
+    if(!confirm('⚠️ Proses render video sedang berjalan!\n\nJika refresh sekarang, proses akan batal.\n\nYakin mau refresh?')) return;
+  } else {
+    if(!confirm('🔄 Refresh halaman?\n\nSemua data di Editor & Chat akan hilang.')) return;
+  }
+  const btn = document.getElementById('refreshBtn');
+  btn.classList.add('spinning');
+  showToast('Memuat ulang...', 'info');
+  setTimeout(()=>{ location.reload(); }, 500);
+}
+
+/* ===== TOAST NOTIFICATION ===== */
+let toastTimer = null;
+function showToast(msg, type='success'){
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.className = '';
+  if(type === 'error') toast.classList.add('error');
+  else if(type === 'info') toast.classList.add('info');
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>{ toast.classList.remove('show'); }, 2500);
+}
+
+/* ===== RESET ALL ===== */
+function resetAll(){
+  if(!confirm('🗑 Reset semua data?\n\n• Foto di Editor akan hilang\n• Chat akan dikosongkan\n• Filter akan direset\n\nYakin?')) return;
+  try { localStorage.clear(); } catch(e){}
+  showToast('Data direset. Memuat ulang...', 'info');
+  setTimeout(()=>{ location.reload(); }, 700);
+}
+
+/* ===== FILTER MAP ===== */
 const FILTER_MAP = {
   normal: '',
   hd: 'contrast(1.25) saturate(1.35) brightness(1.08)',
@@ -293,6 +414,7 @@ function switchTab(name, btn){
   document.getElementById(map[name]).classList.add('active');
 }
 
+/* ===== EDITOR ===== */
 let mode='video', fileURL=null, curFilter='normal', origFile=null;
 const fileIn=document.getElementById('fileIn'), upTitle=document.getElementById('upTitle'), upDesc=document.getElementById('upDesc');
 const prevWrap=document.getElementById('prevWrap'), mediaBox=document.getElementById('mediaBox'), uploadArea=document.getElementById('uploadArea');
@@ -332,6 +454,7 @@ async function downloadPhoto(){
   if(!img) return;
   const prog=document.getElementById('prog'), bar=document.getElementById('barIn'), perc=document.getElementById('perc');
   prog.style.display='block'; bar.style.width='30%'; perc.textContent='30%';
+  isRendering = true;
   await new Promise(r=>setTimeout(r,200));
   const canvas = document.createElement('canvas');
   canvas.width = img.naturalWidth;
@@ -375,6 +498,8 @@ async function downloadPhoto(){
   a.download = 'filterlab_foto_' + Date.now() + '.jpg';
   a.click();
   bar.style.width='100%'; perc.textContent='Selesai!';
+  isRendering = false;
+  showToast('✅ Foto berhasil diunduh!');
   setTimeout(()=>prog.style.display='none',1500);
 }
 
@@ -383,6 +508,7 @@ async function downloadVideo(){
   if(!video) return;
   const prog=document.getElementById('prog'), bar=document.getElementById('barIn'), perc=document.getElementById('perc');
   prog.style.display='block';
+  isRendering = true;
   perc.textContent='Menyiapkan...'; bar.style.width='5%';
   const filterStr = FILTER_MAP[curFilter] || 'none';
   const videoW = video.videoWidth || 720;
@@ -407,6 +533,7 @@ async function downloadVideo(){
   video.play();
   const duration = video.duration || 10;
   const startTime = Date.now();
+  showToast('🎬 Sedang render video... Jangan tutup halaman!', 'info');
   await new Promise(resolve => {
     function drawFrame(){
       if(video.ended || video.paused){ resolve(); return; }
@@ -432,6 +559,8 @@ async function downloadVideo(){
   a.download = 'filterlab_video_' + Date.now() + '.webm';
   a.click();
   bar.style.width='100%'; perc.textContent='Selesai!';
+  isRendering = false;
+  showToast('✅ Video berhasil diunduh!');
   setTimeout(()=>{ prog.style.display='none'; URL.revokeObjectURL(url); }, 2000);
 }
 
@@ -442,6 +571,7 @@ function startDl(){
 }
 setMode('video');
 
+/* ===== AI STUDIO ===== */
 let aiFiles = [];
 let aiMode = 'hd';
 
@@ -470,6 +600,7 @@ async function runAI(){
   if(aiFiles.length===0) return;
   const btn=document.getElementById('aiRun'), prog=document.getElementById('aiProg'), bar=document.getElementById('aiBar'), perc=document.getElementById('aiPerc');
   btn.disabled=true; prog.style.display='block';
+  isRendering = true;
   const result = document.getElementById('aiResult'); result.innerHTML='';
   const wmText = document.getElementById('wmText').value.trim();
   const total = aiFiles.length;
@@ -493,6 +624,8 @@ async function runAI(){
     }
   }
   perc.textContent='Selesai!'; btn.disabled=false;
+  isRendering = false;
+  showToast('✅ AI selesai memproses!');
   setTimeout(()=>prog.style.display='none',1500);
 }
 function loadImg(src){ return new Promise((res,rej)=>{ const i=new Image(); i.crossOrigin='anonymous'; i.onload=()=>res(i); i.onerror=rej; i.src=src; }); }
@@ -522,6 +655,7 @@ function processImage(img, mode, wm){
   return c.toDataURL('image/jpeg', 0.95);
 }
 
+/* ===== CHAT ===== */
 const chatWindow = document.getElementById('chatWindow');
 const chatInput = document.getElementById('chatInput');
 const chatSend = document.getElementById('chatSend');
@@ -588,7 +722,6 @@ const DAFTAR_PERINTAH = `📋 DAFTAR LENGKAP SEMUA PERINTAH (110+)
 • cerahkan / cerahkan foto
 • foto ini terlalu gelap
 • kurang terang
-• buat lebih terang
 • tambahkan cahaya
 • tingkatkan kecerahan
 
@@ -597,7 +730,6 @@ const DAFTAR_PERINTAH = `📋 DAFTAR LENGKAP SEMUA PERINTAH (110+)
 • redupkan / buat suram
 • buat lebih gelap
 • kurangi cahaya
-• buat nuansa gelap
 
 🔍 PERTAJAM / HD / SHARPEN
 • pertajam / pertajam foto
@@ -606,7 +738,6 @@ const DAFTAR_PERINTAH = `📋 DAFTAR LENGKAP SEMUA PERINTAH (110+)
 • tingkatkan ketajaman
 • perbaiki kualitas
 • buat lebih jernih
-• tingkatkan resolusi
 
 🌸 HALUSKAN KULIT (Soft Skin)
 • haluskan kulit / haluskan wajah
@@ -623,9 +754,8 @@ const DAFTAR_PERINTAH = `📋 DAFTAR LENGKAP SEMUA PERINTAH (110+)
 • jadikan hitam putih
 • buat monokrom
 • buat grayscale
-• hapus warna
 
-🟤 SEPIA (Warna Cokelat Klasik)
+🟤 SEPIA
 • buat sepia / jadikan sepia
 • buat warna cokelat
 • buat nuansa cokelat klasik
@@ -633,36 +763,30 @@ const DAFTAR_PERINTAH = `📋 DAFTAR LENGKAP SEMUA PERINTAH (110+)
 📻 VINTAGE / JADUL
 • buat vintage / jadikan vintage
 • buat retro / buat jadul
-• buat kesan klasik
 • buat nuansa zaman dahulu
 • buat nuansa 90an / 80an / 70an
 
-🎬 TEAL & ORANGE (Film Hollywood)
+🎬 TEAL & ORANGE
 • buat teal orange
 • buat efek film Hollywood
 • buat cinema look
-• buat gaya blockbuster
 
-📼 VHS EFFECT (Kaset Jadul)
+📼 VHS EFFECT
 • buat efek VHS
 • buat kesan kaset jadul
-• buat efek video lama
 
-🌟 HDR EFFECT (Kontras Tinggi)
+🌟 HDR EFFECT
 • buat efek HDR
 • buat warna dramatis
-• buat warna super vivid
 • tingkatkan kontras warna
 
-✨ LIGHT LEAK (Kebocoran Cahaya)
+✨ LIGHT LEAK
 • buat light leak
 • buat kebocoran cahaya
-• tambahkan efek sinar
 
 🌫️ BLUR / KABUR
 • buat blur / kaburkan
 • buat buram
-• buat lebih lembut
 • buat dreamy
 • buat efek bokeh
 
@@ -675,7 +799,6 @@ const DAFTAR_PERINTAH = `📋 DAFTAR LENGKAP SEMUA PERINTAH (110+)
 • buat hangat
 • buat nuansa hangat
 • buat nuansa oranye
-• buat nuansa matahari
 • buat nuansa sunset / senja
 • buat golden hour
 
@@ -690,7 +813,6 @@ const DAFTAR_PERINTAH = `📋 DAFTAR LENGKAP SEMUA PERINTAH (110+)
 • buat pucat
 • kurangi warna
 • buat kalem
-• buat tenang
 • buat warna pastel
 • buat warna lembut
 
@@ -699,14 +821,12 @@ const DAFTAR_PERINTAH = `📋 DAFTAR LENGKAP SEMUA PERINTAH (110+)
 • buat warna kuat
 • buat warna hidup
 • buat warna meriah
-• buat warna mencolok
 • tingkatkan saturasi
 
 ⚡ KONTRAS
 • tambahkan kontras
 • tingkatkan kontras
 • buat dramatis
-• buat epik
 • kurangi kontras
 • buat flat / faded
 
@@ -714,98 +834,69 @@ const DAFTAR_PERINTAH = `📋 DAFTAR LENGKAP SEMUA PERINTAH (110+)
 
 ✨ EFEK SPESIAL
 
-🌑 VIGNETTE (Gelapkan Pinggir)
+🌑 VIGNETTE
 • tambahkan vignette
 • gelapkan pinggir foto
-• gelapkan tepi foto
-• buat fokus ke tengah
 
 📷 BINGKAI / FRAME
-• tambahkan bingkai putih
-• tambahkan bingkai hitam
-• tambahkan bingkai emas
-• tambahkan frame
+• tambahkan bingkai putih / hitam / emas
 • buat seperti polaroid
 • buat seperti album foto
 
 📼 GRAIN / FILM JADUL
-• tambahkan grain
-• tambahkan noise
+• tambahkan grain / noise
 • buat efek film
-• buat kesan analog
 • buat tekstur film
 
 ✨ SOFT GLOW
-• tambahkan glow
-• tambahkan soft glow
-• buat bersinar
-• buat bercahaya
-• buat efek light leak
+• tambahkan glow / soft glow
+• buat bersinar / bercahaya
 
 🎨 TINT WARNA
-• tambahkan tint pink
-• tambahkan tint biru
-• tambahkan tint ungu
-• tambahkan tint hijau
-• tambahkan tint merah
-• tambahkan tint kuning
+• tambahkan tint pink / biru / ungu / hijau / merah / kuning
 
 🌅 GOLDEN HOUR
 • buat golden hour
 • buat nuansa emas
-• buat warna keemasan
 • buat nuansa matahari terbenam
 
 🪞 MIRROR EFFECT
 • buat mirror effect
 • buat efek pantulan
-• buat simetris
 
 ⭕ ROUNDED CORNERS
 • buat sudut bulat
 • buat rounded
-• bulatkan sudut foto
 
 ━━━━━━━━━━━━━━━━━━━━━
 
 🔄 PUTAR / ROTATE
-• putar 90 derajat
-• putar 45 derajat
-• putar 30 derajat
+• putar 90 / 45 / 30 derajat
 • putar ke kiri / ke kanan
-• putar 180 derajat
-• putar 270 derajat
-• miringkan foto
+• putar 180 / 270 derajat
 
 🪞 FLIP / CERMIN
 • cerminkan foto
-• buat mirror
-• balik horizontal
-• balik vertikal
+• balik horizontal / vertikal
 
 ✂️ CROP / POTONG
-• potong persegi / potong kotak
-• potong 1:1 / 16:9 / 9:16
-• potong 4:3 / 3:4
-• buat untuk story / reels
-• buat untuk feed Instagram
+• potong persegi / kotak
+• potong 1:1 / 16:9 / 9:16 / 4:3 / 3:4
+• buat untuk story / reels / feed Instagram
 
 📏 UKURAN / RESIZE
 • perkecil foto
-• perkecil jadi 800px (100-4000)
+• perkecil jadi 800px
 • kompres jadi 50%
-• ubah ukuran
 
 💧 WATERMARK / TULISAN
 • tambahkan watermark Alipp
 • tambahkan watermark [teks Anda]
 • tulis "nama Anda"
-• tambahkan tulisan di tengah
 
 🎭 GABUNGAN (BISA BANYAK)
 • cerahkan + pertajam
 • HD + tambahkan watermark Alipp
-• buat vintage + cerminkan
 • vignette + bingkai + golden hour
 
 ✨ PERINTAH OTOMATIS
@@ -815,9 +906,6 @@ const DAFTAR_PERINTAH = `📋 DAFTAR LENGKAP SEMUA PERINTAH (110+)
 • buat seperti zaman dahulu → Vintage
 • buat dreamy → Soft Glow
 • buat dramatis → HDR
-• buat ceria → Warna Vivid
-• buat kalem → Pastel
-• buat seperti film → Teal Orange
 
 ━━━━━━━━━━━━━━━━━━━━━
 
@@ -825,20 +913,15 @@ const DAFTAR_PERINTAH = `📋 DAFTAR LENGKAP SEMUA PERINTAH (110+)
 
 ✅ BISA:
 • Cerahkan / gelapkan foto
-• Pertajam (HD) / sharpen / haluskan kulit
+• Pertajam (HD) / haluskan kulit
 • Tambahkan watermark / putar / potong
 • Tambahkan vignette / bingkai / glow
-• Sepia / teal orange / VHS / HDR
 
 ❌ TIDAK BISA:
 • Mengurangi / menambah orang
 • Mengganti background
 • Mengganti wajah orang
 • Menghapus objek dari foto
-• Mengganti warna baju
-
-Jika membutuhkan yang TIDAK BISA, gunakan
-Photoshop atau AI generatif.
 
 ━━━━━━━━━━━━━━━━━━━━━
 Ketik "tampilkan semua perintah" untuk melihat kembali.`;
@@ -850,7 +933,7 @@ const KB = [
     ans:'Saya selalu siap membantu edit foto! 🤖' },
   { keys:['siapa kamu','kamu siapa','nama kamu','nama mu','who are you','what are you','kamu apa'],
     ans:'Saya asisten AI dari FilterLab, website buatan Alipp. Saya hanya dapat menjalankan PERINTAH EDIT FOTO.' },
-  { keys:['apa itu filterlab','filterlab itu apa','tentang filterlab','fungsi filterlab','kegunaan filterlab','apa itu hd editor','hd editor itu apa'],
+  { keys:['apa itu filterlab','filterlab itu apa','tentang filterlab','fungsi filterlab','kegunaan filterlab'],
     ans:'FilterLab adalah website untuk memberikan EFEK dan FILTER pada foto dan video Anda. Dikembangkan oleh Alipp.' },
   { keys:['cara pakai','gimana pakai','how to use','tutorial','panduan','cara menggunakan','cara kerja','bagaimana cara pakai ai ini','bagaimana cara menggunakan ai ini'],
     ans:'Cara menggunakan AI ini:\n\n1. Tekan tombol 📎 di kiri kolom chat\n2. Pilih foto dari galeri\n3. Tulis perintah, contoh: "buat HD" atau "cerahkan foto"\n4. Tekan tombol Kirim\n5. Tunggu AI memproses\n6. Hasil akan muncul di chat, tekan "Simpan Hasil"' },
@@ -878,12 +961,14 @@ const KB = [
     ans:'FilterLab sepenuhnya gratis.' },
   { keys:['aman','privasi','data','upload ke server','server'],
     ans:'Aman! Semua proses edit berjalan langsung di HP Anda menggunakan Canvas.' },
+  { keys:['refresh','reload','muat ulang'],
+    ans:'Untuk refresh: tarik layar ke bawah, atau tekan tombol 🔄 di kanan atas.' },
   { keys:['terima kasih','thanks','thank you','makasih','thx','tq'],
     ans:'Sama-sama! 😊' },
   { keys:['bye','selesai','dadah','sampai jumpa','goodbye'],
     ans:'Sampai jumpa! 👋' },
   { keys:['error','gak bisa','tidak bisa','gagal','rusak','bug','kenapa'],
-    ans:'Maaf 😅 Coba:\n1. Muat ulang halaman\n2. Pastikan file JPG/PNG\n3. Unggah ulang' },
+    ans:'Maaf 😅 Coba:\n1. Refresh halaman (tarik ke bawah)\n2. Pastikan file JPG/PNG\n3. Unggah ulang' },
   { keys:['bagus','keren','mantap','nice','good','top'],
     ans:'Terima kasih! 🙌' },
   { keys:['saran','rekomendasi','tips','trick','trik'],
