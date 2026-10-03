@@ -11,14 +11,11 @@ html,body{width:100%;height:100%;overflow:hidden;touch-action:pan-x pan-y;-webki
 body{color:#fff;display:flex;justify-content:center;align-items:stretch;padding:8px;background:#070b12;background-image:radial-gradient(circle at 15% 15%, rgba(59,130,246,.25), transparent 45%),radial-gradient(circle at 85% 10%, rgba(139,92,246,.22), transparent 45%),radial-gradient(circle at 80% 90%, rgba(16,185,129,.18), transparent 50%),radial-gradient(circle at 10% 85%, rgba(236,72,153,.15), transparent 50%),linear-gradient(160deg, #070b12 0%, #0b1220 40%, #0a0f18 70%, #060a10 100%)}
 body::before{content:'';position:fixed;inset:0;background-image:radial-gradient(rgba(255,255,255,.06) 1px, transparent 1px);background-size:22px 22px;opacity:.35;pointer-events:none;z-index:0}
 body::after{content:'';position:fixed;inset:0;background:linear-gradient(180deg, rgba(0,0,0,.15) 0%, rgba(0,0,0,.45) 100%);pointer-events:none;z-index:0}
-
-/* === PULL TO REFRESH INDICATOR === */
 #ptrIndicator{position:fixed;top:0;left:50%;transform:translateX(-50%) translateY(-100%);z-index:9999;background:rgba(59,130,246,.95);color:#fff;padding:8px 20px;border-radius:0 0 16px 16px;font-size:12px;font-weight:800;display:flex;align-items:center;gap:8px;transition:transform .2s ease;box-shadow:0 4px 16px rgba(0,0,0,.5);pointer-events:none;backdrop-filter:blur(10px)}
 #ptrIndicator.show{transform:translateX(-50%) translateY(0)}
 #ptrIndicator.ready{background:rgba(16,185,129,.95)}
 .ptrSpinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin 0.8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-
 .glass, .wm { position:relative; z-index:1; }
 .glass{background:rgba(15,22,32,.72);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);border:1px solid rgba(255,255,255,.12);border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.06);width:100%;max-width:480px;padding:14px;display:flex;flex-direction:column;height:100%;max-height:100%;overflow:hidden}
 .top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;flex-shrink:0}
@@ -108,8 +105,6 @@ body::after{content:'';position:fixed;inset:0;background:linear-gradient(180deg,
 .chatQuick button{background:rgba(140,140,150,.15);border:1px solid rgba(255,255,255,.18);color:rgba(255,255,255,.85);padding:4px 8px;border-radius:20px;font-size:9px;font-weight:700;cursor:pointer;transition:.2s}
 .chatQuick button:hover{background:rgba(160,160,170,.28)}
 .chatMsg .status{font-size:9px;opacity:.65;margin-bottom:3px;font-style:italic}
-
-/* === TOAST NOTIFICATION === */
 #toast{position:fixed;top:60px;left:50%;transform:translateX(-50%) translateY(-100px);background:rgba(16,185,129,.95);color:#fff;padding:10px 18px;border-radius:12px;font-size:12px;font-weight:700;z-index:99999;transition:transform .3s ease;box-shadow:0 8px 24px rgba(0,0,0,.5);pointer-events:none;max-width:90%;text-align:center}
 #toast.show{transform:translateX(-50%) translateY(0)}
 #toast.error{background:rgba(239,68,68,.95)}
@@ -118,11 +113,7 @@ body::after{content:'';position:fixed;inset:0;background:linear-gradient(180deg,
 </head>
 <body>
 
-<div id="ptrIndicator">
-  <div class="ptrSpinner"></div>
-  <span id="ptrText">Tarik untuk refresh</span>
-</div>
-
+<div id="ptrIndicator"><div class="ptrSpinner"></div><span id="ptrText">Tarik untuk refresh</span></div>
 <div id="toast"></div>
 
 <svg style="display:none">
@@ -135,18 +126,9 @@ body::after{content:'';position:fixed;inset:0;background:linear-gradient(180deg,
       <circle cx="80" cy="105" r="4" fill="#4fc3f7" opacity=".9"/>
       <circle cx="70" cy="115" r="3" fill="#4fc3f7" opacity=".9"/>
     </g>
-    <g transform="translate(60, 60)">
-      <path d="M 20 0 Q 40 30 40 50 Q 40 70 20 70 Q 0 70 0 50 Q 0 30 20 0 Z" fill="none" stroke="#8b5cf6" stroke-width="5"/>
-    </g>
-    <g transform="translate(310, 60)">
-      <path d="M 20 0 Q 40 30 40 50 Q 40 70 20 70 Q 0 70 0 50 Q 0 30 20 0 Z" fill="none" stroke="#8b5cf6" stroke-width="5"/>
-    </g>
-    <defs>
-      <linearGradient id="gradFL" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stop-color="#4fc3f7"/>
-        <stop offset="1" stop-color="#8b5cf6"/>
-      </linearGradient>
-    </defs>
+    <g transform="translate(60, 60)"><path d="M 20 0 Q 40 30 40 50 Q 40 70 20 70 Q 0 70 0 50 Q 0 30 20 0 Z" fill="none" stroke="#8b5cf6" stroke-width="5"/></g>
+    <g transform="translate(310, 60)"><path d="M 20 0 Q 40 30 40 50 Q 40 70 20 70 Q 0 70 0 50 Q 0 30 20 0 Z" fill="none" stroke="#8b5cf6" stroke-width="5"/></g>
+    <defs><linearGradient id="gradFL" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4fc3f7"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs>
     <text x="200" y="215" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="56" font-weight="900" font-style="italic" fill="url(#gradFL)" letter-spacing="1">FilterLab</text>
     <text x="200" y="242" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#8b5cf6" letter-spacing="4">EFFECT &amp; FILTER STUDIO</text>
   </symbol>
@@ -217,15 +199,15 @@ body::after{content:'';position:fixed;inset:0;background:linear-gradient(180deg,
     </div>
     <button class="download" id="dlBtn" onclick="startDl()" style="opacity:.5;pointer-events:none">⬇ Unduh MP4 / Foto</button>
     <div class="progress" id="prog"><div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px"><span>Memproses...</span><span id="perc">0%</span></div><div class="bar"><div id="barIn"></div></div></div>
-    <div style="font-size:9px;opacity:.5;margin-top:6px;text-align:center;padding-bottom:20px">ℹ️ Foto: HD asli. Video: render WebM HD.</div>
+    <div style="font-size:9px;opacity:.5;margin-top:6px;text-align:center;padding-bottom:20px">ℹ️ Foto: HD asli. Video: render WebM HD (lancar sesuai FPS).</div>
   </div>
 </div>
 
 <div class="page" id="pageAi">
   <div class="page-scroll">
     <div class="aiHeader">
-      <h3>🤖 AI PHOTO ENHANCER <span class="badge">PRO</span></h3>
-      <p>Buat foto lebih cerah, jernih, dan hidup dengan AI</p>
+      <h3>🤖 AI PHOTO & VIDEO ENHANCER <span class="badge">PRO</span></h3>
+      <p>Buat foto & video lebih cerah, jernih, dan hidup dengan AI</p>
     </div>
     <div class="upload" onclick="document.getElementById('aiFile').click()" style="padding:16px">
       <div style="font-size:26px">📤</div>
@@ -295,15 +277,12 @@ Ketik "tampilkan semua perintah"
 <div class="wm">Developer By Alipp</div>
 
 <script>
-/* =========================================================
-   ANTI ZOOM + PULL TO REFRESH
-   ========================================================= */
+/* ===== ANTI ZOOM + PTR ===== */
 document.addEventListener('touchmove', e=>{ if(e.touches.length>1) e.preventDefault(); }, {passive:false});
 document.addEventListener('wheel', e=>{ if(e.ctrlKey) e.preventDefault(); }, {passive:false});
 document.addEventListener('keydown', e=>{ if((e.ctrlKey||e.metaKey) && ['+','-','=','0'].includes(e.key)) e.preventDefault(); });
 ['gesturestart','gesturechange','gestureend'].forEach(ev=>document.addEventListener(ev,e=>e.preventDefault()));
 
-/* ===== PULL TO REFRESH ===== */
 let ptrStartY = 0, ptrCurrentY = 0, ptrActive = false;
 const ptrIndicator = document.getElementById('ptrIndicator');
 const ptrText = document.getElementById('ptrText');
@@ -313,12 +292,10 @@ document.addEventListener('touchstart', e=>{
   if(e.touches.length !== 1) return;
   const scrollable = e.target.closest('.chatWindow, .page-scroll');
   if(scrollable && scrollable.scrollTop > 0) return;
-  if(!scrollable && document.body.scrollTop > 0) return;
   ptrStartY = e.touches[0].clientY;
   ptrActive = true;
   ptrCurrentY = 0;
 }, {passive:true});
-
 document.addEventListener('touchmove', e=>{
   if(!ptrActive || e.touches.length !== 1) return;
   ptrCurrentY = e.touches[0].clientY - ptrStartY;
@@ -336,14 +313,12 @@ document.addEventListener('touchmove', e=>{
     }
   }
 }, {passive:true});
-
 document.addEventListener('touchend', e=>{
   if(!ptrActive) return;
   ptrActive = false;
   if(ptrCurrentY > PTR_THRESHOLD){
     ptrText.textContent = 'Memuat ulang...';
-    ptrIndicator.classList.add('show');
-    ptrIndicator.classList.add('ready');
+    ptrIndicator.classList.add('show','ready');
     setTimeout(()=>{ location.reload(); }, 300);
   } else {
     ptrIndicator.style.transform = 'translateX(-50%) translateY(-100%)';
@@ -352,12 +327,10 @@ document.addEventListener('touchend', e=>{
   ptrCurrentY = 0;
 }, {passive:true});
 
-/* ===== REFRESH BUTTON ===== */
 let isRendering = false;
-
 function manualRefresh(){
   if(isRendering){
-    if(!confirm('⚠️ Proses render video sedang berjalan!\n\nJika refresh sekarang, proses akan batal.\n\nYakin mau refresh?')) return;
+    if(!confirm('⚠️ Proses render sedang berjalan!\n\nJika refresh sekarang, proses akan batal.\n\nYakin mau refresh?')) return;
   } else {
     if(!confirm('🔄 Refresh halaman?\n\nSemua data di Editor & Chat akan hilang.')) return;
   }
@@ -367,7 +340,6 @@ function manualRefresh(){
   setTimeout(()=>{ location.reload(); }, 500);
 }
 
-/* ===== TOAST NOTIFICATION ===== */
 let toastTimer = null;
 function showToast(msg, type='success'){
   const toast = document.getElementById('toast');
@@ -380,7 +352,6 @@ function showToast(msg, type='success'){
   toastTimer = setTimeout(()=>{ toast.classList.remove('show'); }, 2500);
 }
 
-/* ===== RESET ALL ===== */
 function resetAll(){
   if(!confirm('🗑 Reset semua data?\n\n• Foto di Editor akan hilang\n• Chat akan dikosongkan\n• Filter akan direset\n\nYakin?')) return;
   try { localStorage.clear(); } catch(e){}
@@ -388,14 +359,10 @@ function resetAll(){
   setTimeout(()=>{ location.reload(); }, 700);
 }
 
-/* ===== FILTER MAP ===== */
 const FILTER_MAP = {
-  normal: '',
-  hd: 'contrast(1.25) saturate(1.35) brightness(1.08)',
-  stabil: 'contrast(1.1)',
-  cinema: 'contrast(1.3) saturate(1.2) sepia(.2)',
-  slow: 'blur(.3px)',
-  real: 'contrast(1.4) saturate(1.6)',
+  normal: '', hd: 'contrast(1.25) saturate(1.35) brightness(1.08)',
+  stabil: 'contrast(1.1)', cinema: 'contrast(1.3) saturate(1.2) sepia(.2)',
+  slow: 'blur(.3px)', real: 'contrast(1.4) saturate(1.6)',
   sunset: 'sepia(.5) saturate(1.8) hue-rotate(-10deg) contrast(1.2)',
   sharpen: 'contrast(1.4) saturate(1.2) brightness(1.05)',
   softskin: 'blur(.5px) brightness(1.05) saturate(1.1)',
@@ -414,7 +381,6 @@ function switchTab(name, btn){
   document.getElementById(map[name]).classList.add('active');
 }
 
-/* ===== EDITOR ===== */
 let mode='video', fileURL=null, curFilter='normal', origFile=null;
 const fileIn=document.getElementById('fileIn'), upTitle=document.getElementById('upTitle'), upDesc=document.getElementById('upDesc');
 const prevWrap=document.getElementById('prevWrap'), mediaBox=document.getElementById('mediaBox'), uploadArea=document.getElementById('uploadArea');
@@ -503,6 +469,7 @@ async function downloadPhoto(){
   setTimeout(()=>prog.style.display='none',1500);
 }
 
+/* ===== RENDER VIDEO EDITOR (LANCAR SESUAI FPS) ===== */
 async function downloadVideo(){
   const video = document.getElementById('mainMedia');
   if(!video) return;
@@ -510,58 +477,116 @@ async function downloadVideo(){
   prog.style.display='block';
   isRendering = true;
   perc.textContent='Menyiapkan...'; bar.style.width='5%';
+  
   const filterStr = FILTER_MAP[curFilter] || 'none';
   const videoW = video.videoWidth || 720;
   const videoH = video.videoHeight || 1280;
-  const maxW = 1080;
-  const scale = videoW > maxW ? maxW / videoW : 1;
+  
   const canvas = document.createElement('canvas');
-  canvas.width = Math.round(videoW * scale);
-  canvas.height = Math.round(videoH * scale);
-  const ctx = canvas.getContext('2d');
-  const stream = canvas.captureStream(30);
+  canvas.width = videoW;
+  canvas.height = videoH;
+  const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  
+  if(typeof MediaRecorder === 'undefined'){
+    showToast('❌ Browser tidak mendukung render video.', 'error');
+    isRendering = false; prog.style.display='none'; return;
+  }
+  
   let mimeType = 'video/webm;codecs=vp9';
   if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm;codecs=vp8';
   if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm';
+  if(!MediaRecorder.isTypeSupported(mimeType)){
+    showToast('❌ Browser tidak mendukung WebM.', 'error');
+    isRendering = false; prog.style.display='none'; return;
+  }
+  
+  const pixels = videoW * videoH;
+  let bitrate = 4000000;
+  if(pixels >= 1920*1080) bitrate = 8000000;
+  else if(pixels >= 1280*720) bitrate = 6000000;
+  else if(pixels >= 854*480) bitrate = 4000000;
+  else bitrate = 2500000;
+  
+  const stream = canvas.captureStream(0);
+  const track = stream.getVideoTracks()[0];
   const chunks = [];
-  const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 5000000 });
+  const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: bitrate });
   recorder.ondataavailable = e => { if(e.data.size > 0) chunks.push(e.data); };
-  video.currentTime = 0;
+  
+  video.pause();
   video.muted = true;
-  await new Promise(r => setTimeout(r, 300));
-  recorder.start();
+  video.currentTime = 0;
+  await new Promise(r => { 
+    if(video.readyState >= 2) return r();
+    video.onloadeddata = r;
+    setTimeout(r, 500);
+  });
+  
+  recorder.start(100);
   video.play();
+  
   const duration = video.duration || 10;
   const startTime = Date.now();
-  showToast('🎬 Sedang render video... Jangan tutup halaman!', 'info');
-  await new Promise(resolve => {
-    function drawFrame(){
-      if(video.ended || video.paused){ resolve(); return; }
-      try { ctx.filter = filterStr; } catch(e){ ctx.filter='none'; }
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      ctx.filter='none';
-      const elapsed = (Date.now() - startTime) / 1000;
-      const pct = Math.min(95, Math.round((elapsed/duration)*100));
-      bar.style.width = pct+'%';
-      perc.textContent = pct+'%';
-      requestAnimationFrame(drawFrame);
+  showToast('🎬 Render video dimulai... Jangan tutup halaman!', 'info');
+  
+  let isDone = false;
+  function renderFrame(){
+    if(isDone) return;
+    if(video.ended || video.paused || video.currentTime >= duration){
+      isDone = true; finishRender(); return;
     }
-    drawFrame();
-    setTimeout(resolve, duration*1000 + 2000);
-  });
-  recorder.stop();
-  video.pause();
-  await new Promise(r => { recorder.onstop = r; setTimeout(r, 500); });
-  const blob = new Blob(chunks, { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'filterlab_video_' + Date.now() + '.webm';
-  a.click();
-  bar.style.width='100%'; perc.textContent='Selesai!';
-  isRendering = false;
-  showToast('✅ Video berhasil diunduh!');
-  setTimeout(()=>{ prog.style.display='none'; URL.revokeObjectURL(url); }, 2000);
+    try {
+      ctx.filter = filterStr;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      ctx.filter = 'none';
+    } catch(e){
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    }
+    if(track.requestFrame) track.requestFrame();
+    const elapsed = (Date.now() - startTime) / 1000;
+    const pct = Math.min(98, Math.round((elapsed/duration)*100));
+    bar.style.width = pct+'%';
+    perc.textContent = pct+'%';
+    if('requestVideoFrameCallback' in HTMLVideoElement.prototype){
+      video.requestVideoFrameCallback(renderFrame);
+    } else {
+      requestAnimationFrame(renderFrame);
+    }
+  }
+  
+  if('requestVideoFrameCallback' in HTMLVideoElement.prototype){
+    video.requestVideoFrameCallback(renderFrame);
+  } else {
+    requestAnimationFrame(renderFrame);
+  }
+  
+  setTimeout(()=>{ if(!isDone){ isDone = true; finishRender(); } }, duration*1000 + 5000);
+  
+  async function finishRender(){
+    video.pause();
+    try { recorder.stop(); } catch(e){}
+    await new Promise(r => { 
+      if(recorder.state === 'inactive') return r();
+      recorder.onstop = r;
+      setTimeout(r, 1000);
+    });
+    if(chunks.length === 0){
+      showToast('❌ Render gagal. Coba lagi.', 'error');
+      isRendering = false; prog.style.display='none'; return;
+    }
+    const blob = new Blob(chunks, { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'filterlab_video_' + Date.now() + '.webm';
+    a.click();
+    bar.style.width='100%'; perc.textContent='Selesai!';
+    isRendering = false;
+    showToast('✅ Video berhasil diunduh!');
+    setTimeout(()=>{ prog.style.display='none'; URL.revokeObjectURL(url); }, 2500);
+  }
 }
 
 function startDl(){
@@ -596,6 +621,7 @@ function pickAI(el){
   document.querySelectorAll('.aiCard').forEach(c=>c.classList.remove('active'));
   el.classList.add('active'); aiMode = el.dataset.ai;
 }
+
 async function runAI(){
   if(aiFiles.length===0) return;
   const btn=document.getElementById('aiRun'), prog=document.getElementById('aiProg'), bar=document.getElementById('aiBar'), perc=document.getElementById('aiPerc');
@@ -604,31 +630,55 @@ async function runAI(){
   const result = document.getElementById('aiResult'); result.innerHTML='';
   const wmText = document.getElementById('wmText').value.trim();
   const total = aiFiles.length;
+  
   for(let i=0;i<total;i++){
     const f = aiFiles[i];
     const pct = Math.round(((i+1)/total)*100);
-    bar.style.width=pct+'%'; perc.textContent=pct+'%';
+    bar.style.width=pct+'%'; perc.textContent=`Memproses ${i+1}/${total}...`;
+    
     if(f.type.startsWith('image')){
       const img = await loadImg(URL.createObjectURL(f));
       const out = processImage(img, aiMode, wmText);
       const box = document.createElement('div');
-      box.innerHTML = `<div style="font-size:11px;opacity:.7;margin:8px 0 4px">✅ Hasil ${i+1}/${total}: ${f.name}</div>
+      box.innerHTML = `<div style="font-size:11px;opacity:.7;margin:8px 0 4px">✅ Hasil Foto ${i+1}/${total}: ${f.name}</div>
         <img src="${out}" style="width:100%;border-radius:10px;border:1px solid rgba(139,92,246,.4)">
-        <a href="${out}" download="filterlab_${aiMode}_${Date.now()}_${i}.jpg" style="display:block;text-align:center;margin-top:6px;background:rgba(139,92,246,.3);padding:8px;border-radius:8px;color:#fff;text-decoration:none;font-size:11px;font-weight:700">⬇ Simpan Hasil AI</a>`;
+        <a href="${out}" download="filterlab_${aiMode}_${Date.now()}_${i}.jpg" style="display:block;text-align:center;margin-top:6px;background:rgba(139,92,246,.3);padding:8px;border-radius:8px;color:#fff;text-decoration:none;font-size:11px;font-weight:700">⬇ Simpan Hasil Foto</a>`;
       result.appendChild(box);
     } else {
+      const boxId = 'aiVideoBox_' + i;
       const box = document.createElement('div');
-      box.innerHTML = `<div style="font-size:11px;opacity:.7;margin:8px 0 4px">🎬 Video: ${f.name}</div>
-        <p style="font-size:10px;opacity:.5;padding:8px;background:rgba(255,255,255,.05);border-radius:8px">Video AI enhancement belum tersedia — silakan gunakan tab ✂️ Editor untuk video.</p>`;
+      box.id = boxId;
+      box.innerHTML = `<div style="font-size:11px;opacity:.7;margin:8px 0 4px">🎬 Memproses Video ${i+1}/${total}: ${f.name}</div>
+        <div style="padding:20px;text-align:center;background:rgba(139,92,246,.1);border-radius:10px;border:1px solid rgba(139,92,246,.3)">
+          <div style="font-size:24px;margin-bottom:8px">⏳</div>
+          <div style="font-size:11px;opacity:.8">Sedang render video...<br>Jangan tutup halaman</div>
+          <div style="margin-top:10px;background:rgba(0,0,0,.4);border-radius:10px;overflow:hidden;height:6px">
+            <div id="aiVidBar_${i}" style="width:0%;height:100%;background:linear-gradient(90deg,#8b5cf6,#3b82f6);transition:.3s"></div>
+          </div>
+          <div id="aiVidPct_${i}" style="font-size:10px;margin-top:6px;opacity:.7">0%</div>
+        </div>`;
       result.appendChild(box);
+      
+      const out = await processVideoAI(f, aiMode, wmText, i);
+      const boxEl = document.getElementById(boxId);
+      if(out){
+        boxEl.innerHTML = `<div style="font-size:11px;opacity:.7;margin:8px 0 4px">✅ Hasil Video ${i+1}/${total}: ${f.name}</div>
+          <video src="${out}" controls muted style="width:100%;border-radius:10px;border:1px solid rgba(139,92,246,.4);background:#000"></video>
+          <a href="${out}" download="filterlab_${aiMode}_video_${Date.now()}_${i}.webm" style="display:block;text-align:center;margin-top:6px;background:rgba(139,92,246,.3);padding:8px;border-radius:8px;color:#fff;text-decoration:none;font-size:11px;font-weight:700">⬇ Simpan Hasil Video</a>`;
+      } else {
+        boxEl.innerHTML = `<div style="font-size:11px;opacity:.7;margin:8px 0 4px">❌ Video ${i+1}/${total}: ${f.name}</div>
+          <p style="font-size:10px;opacity:.6;padding:8px;background:rgba(239,68,68,.1);border-radius:8px;border:1px solid rgba(239,68,68,.3)">Gagal render video. Coba lagi atau pakai video lebih pendek.</p>`;
+      }
     }
   }
   perc.textContent='Selesai!'; btn.disabled=false;
   isRendering = false;
-  showToast('✅ AI selesai memproses!');
-  setTimeout(()=>prog.style.display='none',1500);
+  showToast('✅ AI selesai memproses semua file!');
+  setTimeout(()=>prog.style.display='none',2000);
 }
+
 function loadImg(src){ return new Promise((res,rej)=>{ const i=new Image(); i.crossOrigin='anonymous'; i.onload=()=>res(i); i.onerror=rej; i.src=src; }); }
+
 function processImage(img, mode, wm){
   const scale = mode==='upscale' ? 2 : 1;
   const w = img.naturalWidth * scale, h = img.naturalHeight * scale;
@@ -653,6 +703,140 @@ function processImage(img, mode, wm){
     ctx.fillText(wm, w-16, h-16);
   }
   return c.toDataURL('image/jpeg', 0.95);
+}
+
+/* ===== PROSES VIDEO AI (RENDER LANCAR SESUAI FPS) ===== */
+async function processVideoAI(file, mode, wm, index){
+  return new Promise(async (resolve)=>{
+    try {
+      const url = URL.createObjectURL(file);
+      const video = document.createElement('video');
+      video.src = url;
+      video.muted = true;
+      video.playsInline = true;
+      video.preload = 'auto';
+      
+      await new Promise((res, rej)=>{
+        video.onloadeddata = res;
+        video.onerror = rej;
+        setTimeout(rej, 10000);
+      });
+      
+      const videoW = video.videoWidth || 720;
+      const videoH = video.videoHeight || 1280;
+      
+      const canvas = document.createElement('canvas');
+      canvas.width = videoW;
+      canvas.height = videoH;
+      const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      
+      if(typeof MediaRecorder === 'undefined'){ resolve(null); return; }
+      
+      let mimeType = 'video/webm;codecs=vp9';
+      if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm;codecs=vp8';
+      if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm';
+      
+      const pixels = videoW * videoH;
+      let bitrate = 4000000;
+      if(pixels >= 1920*1080) bitrate = 8000000;
+      else if(pixels >= 1280*720) bitrate = 6000000;
+      else if(pixels >= 854*480) bitrate = 4000000;
+      else bitrate = 2500000;
+      
+      const stream = canvas.captureStream(0);
+      const track = stream.getVideoTracks()[0];
+      const chunks = [];
+      const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: bitrate });
+      recorder.ondataavailable = e => { if(e.data.size > 0) chunks.push(e.data); };
+      
+      let filterStr = '';
+      if(mode==='hd') filterStr = 'contrast(1.25) saturate(1.35) brightness(1.08)';
+      if(mode==='color') filterStr = 'contrast(1.15) saturate(1.9) hue-rotate(5deg) brightness(1.05)';
+      if(mode==='upscale') filterStr = 'contrast(1.3) saturate(1.4) brightness(1.1)';
+      
+      video.currentTime = 0;
+      await new Promise(r => setTimeout(r, 300));
+      
+      recorder.start(100);
+      video.play();
+      
+      const duration = video.duration || 10;
+      const startTime = Date.now();
+      const vidBar = document.getElementById('aiVidBar_' + index);
+      const vidPct = document.getElementById('aiVidPct_' + index);
+      
+      let isDone = false;
+      function renderFrame(){
+        if(isDone) return;
+        if(video.ended || video.paused || video.currentTime >= duration){
+          isDone = true; finish(); return;
+        }
+        try {
+          if(filterStr){
+            ctx.filter = filterStr;
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            ctx.filter = 'none';
+          } else {
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          }
+          if(wm){
+            const fs = Math.max(14, Math.round(canvas.width * 0.035));
+            ctx.font = `bold ${fs}px Inter, Arial`;
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'bottom';
+            ctx.fillStyle = 'rgba(0,0,0,.55)';
+            ctx.fillText(wm, canvas.width-16+1, canvas.height-16+1);
+            ctx.fillStyle = 'rgba(255,255,255,.9)';
+            ctx.fillText(wm, canvas.width-16, canvas.height-16);
+          }
+        } catch(e){
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        }
+        if(track.requestFrame) track.requestFrame();
+        const elapsed = (Date.now() - startTime) / 1000;
+        const pct = Math.min(98, Math.round((elapsed/duration)*100));
+        if(vidBar) vidBar.style.width = pct+'%';
+        if(vidPct) vidPct.textContent = pct+'%';
+        if('requestVideoFrameCallback' in HTMLVideoElement.prototype){
+          video.requestVideoFrameCallback(renderFrame);
+        } else {
+          requestAnimationFrame(renderFrame);
+        }
+      }
+      
+      if('requestVideoFrameCallback' in HTMLVideoElement.prototype){
+        video.requestVideoFrameCallback(renderFrame);
+      } else {
+        requestAnimationFrame(renderFrame);
+      }
+      
+      setTimeout(()=>{ if(!isDone){ isDone = true; finish(); } }, duration*1000 + 5000);
+      
+      async function finish(){
+        video.pause();
+        try { recorder.stop(); } catch(e){}
+        await new Promise(r => { 
+          if(recorder.state === 'inactive') return r();
+          recorder.onstop = r;
+          setTimeout(r, 1000);
+        });
+        if(chunks.length === 0){
+          URL.revokeObjectURL(url);
+          resolve(null);
+          return;
+        }
+        const blob = new Blob(chunks, { type: mimeType });
+        const outUrl = URL.createObjectURL(blob);
+        URL.revokeObjectURL(url);
+        resolve(outUrl);
+      }
+    } catch(err){
+      console.error('Video AI error:', err);
+      resolve(null);
+    }
+  });
 }
 
 /* ===== CHAT ===== */
@@ -739,7 +923,7 @@ const DAFTAR_PERINTAH = `📋 DAFTAR LENGKAP SEMUA PERINTAH (110+)
 • perbaiki kualitas
 • buat lebih jernih
 
-🌸 HALUSKAN KULIT (Soft Skin)
+🌸 HALUSKAN KULIT
 • haluskan kulit / haluskan wajah
 • buat kulit lebih mulus
 • perhalus wajah
@@ -753,7 +937,6 @@ const DAFTAR_PERINTAH = `📋 DAFTAR LENGKAP SEMUA PERINTAH (110+)
 • ubah ke hitam putih
 • jadikan hitam putih
 • buat monokrom
-• buat grayscale
 
 🟤 SEPIA
 • buat sepia / jadikan sepia
@@ -782,9 +965,7 @@ const DAFTAR_PERINTAH = `📋 DAFTAR LENGKAP SEMUA PERINTAH (110+)
 
 ✨ LIGHT LEAK
 • buat light leak
-• buat kebocoran cahaya
-
-🌫️ BLUR / KABUR
+• buat kebocoran cahaya🌫️ BLUR / KABUR
 • buat blur / kaburkan
 • buat buram
 • buat dreamy
@@ -814,7 +995,6 @@ const DAFTAR_PERINTAH = `📋 DAFTAR LENGKAP SEMUA PERINTAH (110+)
 • kurangi warna
 • buat kalem
 • buat warna pastel
-• buat warna lembut
 
 🌈 VIVID / WARNA KUAT
 • buat vivid
@@ -928,7 +1108,7 @@ Ketik "tampilkan semua perintah" untuk melihat kembali.`;
 
 const KB = [
   { keys:['halo','hai','hello','hi','hey','assalam','pagi','siang','malam','sore'],
-    ans:'Halo! 👋 Saya hanya dapat membantu EDIT FOTO, bukan mengobrol bebas.\n\nSilakan kirim foto melalui 📎 lalu tulis perintah.' },
+    ans:'Halo! 👋 Saya hanya dapat membantu EDIT FOTO.\n\nSilakan kirim foto melalui 📎 lalu tulis perintah.' },
   { keys:['apa kabar','gimana kabar','how are you','kabarmu'],
     ans:'Saya selalu siap membantu edit foto! 🤖' },
   { keys:['siapa kamu','kamu siapa','nama kamu','nama mu','who are you','what are you','kamu apa'],
@@ -956,29 +1136,30 @@ const KB = [
   { keys:['simpan','download','unduh','cara simpan'],
     ans:'Setelah hasil edit muncul, tekan tombol "Simpan Hasil".' },
   { keys:['video','mp4','edit video'],
-    ans:'Untuk video, buka tab ✂️ Editor, pilih mode Video, unggah video, terapkan filter, lalu unduh (format WebM).' },
+    ans:'Untuk video, buka tab ✂️ Editor atau 🤖 AI, unggah video, terapkan filter, lalu unduh. Hasil format WebM HD (lancar sesuai FPS video asli).' },
   { keys:['gratis','bayar','harga','price','premium','berbayar'],
     ans:'FilterLab sepenuhnya gratis.' },
   { keys:['aman','privasi','data','upload ke server','server'],
     ans:'Aman! Semua proses edit berjalan langsung di HP Anda menggunakan Canvas.' },
   { keys:['refresh','reload','muat ulang'],
     ans:'Untuk refresh: tarik layar ke bawah, atau tekan tombol 🔄 di kanan atas.' },
+  { keys:['lag','lambat','tersendat','lemot','patah'],
+    ans:'Kalau video render terasa lambat, itu normal untuk video panjang. Render pakai requestVideoFrameCallback = lancar sesuai FPS video. Tunggu sampai selesai ya.' },
   { keys:['terima kasih','thanks','thank you','makasih','thx','tq'],
     ans:'Sama-sama! 😊' },
   { keys:['bye','selesai','dadah','sampai jumpa','goodbye'],
     ans:'Sampai jumpa! 👋' },
   { keys:['error','gak bisa','tidak bisa','gagal','rusak','bug','kenapa'],
-    ans:'Maaf 😅 Coba:\n1. Refresh halaman (tarik ke bawah)\n2. Pastikan file JPG/PNG\n3. Unggah ulang' },
+    ans:'Maaf 😅 Coba:\n1. Refresh halaman (tarik ke bawah)\n2. Pastikan file JPG/PNG/MP4\n3. Unggah ulang' },
   { keys:['bagus','keren','mantap','nice','good','top'],
     ans:'Terima kasih! 🙌' },
   { keys:['saran','rekomendasi','tips','trick','trik'],
-    ans:'Tips editing:\n• Portrait → "HD + haluskan kulit"\n• Pemandangan → "cerahkan + HDR"\n• Feed IG → "potong persegi + bingkai emas"' },
+    ans:'Tips editing:\n• Portrait → "HD + haluskan kulit"\n• Pemandangan → "cerahkan + HDR"\n• Feed IG → "potong persegi + bingkai emas"\n• Video → pakai tab Editor, hasil lebih lancar' },
 ];
 
 function parseCommands(text){
   const t = ' ' + text.toLowerCase().replace(/[^a-z0-9\s]/g,' ') + ' ';
   const ops = [];
-
   if(/\b(cerahkan|terangin|diterangin|cerahin|dicerahin|cerah|terang|nyalain|nyala|kurang.?cahaya|bikin.?terang|bikin.?cerah|jadiin.?terang|jadiin.?cerah|terlalu.?gelap|kurang.?sinar|tambah.?cahaya|tambahin.?cahaya|naikin.?cahaya|brighten|bright|lighten|light|sunny|sinar|bersinar|glow|glowing)\b/.test(t))
     ops.push({type:'filter', name:'bright'});
   if(/\b(gelapkan|gelapin|digelapin|gelap|redup|redupin|suram|bikin.?gelap|jadiin.?gelap|darken|dark|dim|moody|misterius|horor|horror|serem|menakutkan)\b/.test(t))
