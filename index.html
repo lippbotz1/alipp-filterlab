@@ -287,14 +287,11 @@ let ptrStartY = 0, ptrCurrentY = 0, ptrActive = false;
 const ptrIndicator = document.getElementById('ptrIndicator');
 const ptrText = document.getElementById('ptrText');
 const PTR_THRESHOLD = 80;
-
 document.addEventListener('touchstart', e=>{
   if(e.touches.length !== 1) return;
   const scrollable = e.target.closest('.chatWindow, .page-scroll');
   if(scrollable && scrollable.scrollTop > 0) return;
-  ptrStartY = e.touches[0].clientY;
-  ptrActive = true;
-  ptrCurrentY = 0;
+  ptrStartY = e.touches[0].clientY; ptrActive = true; ptrCurrentY = 0;
 }, {passive:true});
 document.addEventListener('touchmove', e=>{
   if(!ptrActive || e.touches.length !== 1) return;
@@ -304,13 +301,8 @@ document.addEventListener('touchmove', e=>{
     if(scrollable && scrollable.scrollTop > 0){ ptrActive = false; ptrIndicator.classList.remove('show'); return; }
     const pull = Math.min(ptrCurrentY * 0.5, 100);
     ptrIndicator.style.transform = `translateX(-50%) translateY(${-100 + pull}%)`;
-    if(ptrCurrentY > PTR_THRESHOLD){
-      ptrIndicator.classList.add('ready');
-      ptrText.textContent = 'Lepaskan untuk refresh';
-    } else {
-      ptrIndicator.classList.remove('ready');
-      ptrText.textContent = 'Tarik untuk refresh';
-    }
+    if(ptrCurrentY > PTR_THRESHOLD){ ptrIndicator.classList.add('ready'); ptrText.textContent = 'Lepaskan untuk refresh'; }
+    else { ptrIndicator.classList.remove('ready'); ptrText.textContent = 'Tarik untuk refresh'; }
   }
 }, {passive:true});
 document.addEventListener('touchend', e=>{
@@ -339,7 +331,6 @@ function manualRefresh(){
   showToast('Memuat ulang...', 'info');
   setTimeout(()=>{ location.reload(); }, 500);
 }
-
 let toastTimer = null;
 function showToast(msg, type='success'){
   const toast = document.getElementById('toast');
@@ -351,7 +342,6 @@ function showToast(msg, type='success'){
   clearTimeout(toastTimer);
   toastTimer = setTimeout(()=>{ toast.classList.remove('show'); }, 2500);
 }
-
 function resetAll(){
   if(!confirm('🗑 Reset semua data?\n\n• Foto di Editor akan hilang\n• Chat akan dikosongkan\n• Filter akan direset\n\nYakin?')) return;
   try { localStorage.clear(); } catch(e){}
@@ -381,6 +371,7 @@ function switchTab(name, btn){
   document.getElementById(map[name]).classList.add('active');
 }
 
+/* ===== EDITOR ===== */
 let mode='video', fileURL=null, curFilter='normal', origFile=null;
 const fileIn=document.getElementById('fileIn'), upTitle=document.getElementById('upTitle'), upDesc=document.getElementById('upDesc');
 const prevWrap=document.getElementById('prevWrap'), mediaBox=document.getElementById('mediaBox'), uploadArea=document.getElementById('uploadArea');
@@ -393,8 +384,7 @@ function setMode(m){
 }
 fileIn.addEventListener('change',e=>{
  const f=e.target.files[0]; if(!f) return;
- origFile = f;
- fileURL=URL.createObjectURL(f);
+ origFile = f; fileURL=URL.createObjectURL(f);
  uploadArea.style.display='none'; prevWrap.style.display='block';
  mediaBox.innerHTML=''; let el;
  if(mode==='video'){el=document.createElement('video'); el.src=fileURL; el.controls=true; el.loop=true; el.muted=true; el.setAttribute('playsinline','')}else{el=document.createElement('img'); el.src=fileURL}
@@ -415,6 +405,97 @@ function apply(type,btn){
  if(type==='rounded') mediaBox.style.borderRadius='30px';
 }
 
+/* ===== RENDER VIDEO EDITOR (LANCAR SESUAI FPS) ===== */
+async function renderVideoToBlob(videoEl, filterStr, wmText, progressCallback){
+  return new Promise((resolve)=>{
+    try {
+      if(typeof MediaRecorder === 'undefined'){ resolve(null); return; }
+      const videoW = videoEl.videoWidth || 720;
+      const videoH = videoEl.videoHeight || 1280;
+      const canvas = document.createElement('canvas');
+      canvas.width = videoW; canvas.height = videoH;
+      const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      let mimeType = 'video/webm;codecs=vp9';
+      if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm;codecs=vp8';
+      if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm';
+      if(!MediaRecorder.isTypeSupported(mimeType)){ resolve(null); return; }
+      const pixels = videoW * videoH;
+      let bitrate = 4000000;
+      if(pixels >= 1920*1080) bitrate = 8000000;
+      else if(pixels >= 1280*720) bitrate = 6000000;
+      else if(pixels >= 854*480) bitrate = 4000000;
+      else bitrate = 2500000;
+      const stream = canvas.captureStream(0);
+      const track = stream.getVideoTracks()[0];
+      const chunks = [];
+      const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: bitrate });
+      recorder.ondataavailable = e => { if(e.data.size > 0) chunks.push(e.data); };
+      const wasPlaying = !videoEl.paused;
+      videoEl.pause();
+      videoEl.muted = true;
+      videoEl.currentTime = 0;
+      const startRender = ()=>{
+        recorder.start(100);
+        videoEl.play();
+        const duration = videoEl.duration || 10;
+        const startTime = Date.now();
+        let isDone = false;
+        function renderFrame(){
+          if(isDone) return;
+          if(videoEl.ended || videoEl.paused || videoEl.currentTime >= duration){
+            isDone = true; finish(); return;
+          }
+          try {
+            if(filterStr){ ctx.filter = filterStr; ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height); ctx.filter = 'none'; }
+            else { ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height); }
+            if(wmText){
+              const fs = Math.max(14, Math.round(canvas.width * 0.035));
+              ctx.font = `bold ${fs}px Inter, Arial`;
+              ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
+              ctx.fillStyle = 'rgba(0,0,0,.55)';
+              ctx.fillText(wmText, canvas.width-16+1, canvas.height-16+1);
+              ctx.fillStyle = 'rgba(255,255,255,.9)';
+              ctx.fillText(wmText, canvas.width-16, canvas.height-16);
+            }
+          } catch(e){ ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height); }
+          if(track.requestFrame) track.requestFrame();
+          const elapsed = (Date.now() - startTime) / 1000;
+          const pct = Math.min(98, Math.round((elapsed/duration)*100));
+          if(progressCallback) progressCallback(pct);
+          if('requestVideoFrameCallback' in HTMLVideoElement.prototype){
+            videoEl.requestVideoFrameCallback(renderFrame);
+          } else {
+            requestAnimationFrame(renderFrame);
+          }
+        }
+        if('requestVideoFrameCallback' in HTMLVideoElement.prototype){
+          videoEl.requestVideoFrameCallback(renderFrame);
+        } else {
+          requestAnimationFrame(renderFrame);
+        }
+        setTimeout(()=>{ if(!isDone){ isDone = true; finish(); } }, duration*1000 + 5000);
+        async function finish(){
+          videoEl.pause();
+          try { recorder.stop(); } catch(e){}
+          await new Promise(r => { 
+            if(recorder.state === 'inactive') return r();
+            recorder.onstop = r;
+            setTimeout(r, 1000);
+          });
+          if(wasPlaying) videoEl.play();
+          if(chunks.length === 0){ resolve(null); return; }
+          const blob = new Blob(chunks, { type: mimeType });
+          resolve(blob);
+        }
+      };
+      if(videoEl.readyState >= 2){ startRender(); }
+      else { videoEl.onloadeddata = startRender; setTimeout(startRender, 500); }
+    } catch(err){ console.error('Render error:', err); resolve(null); }
+  });
+}
+
 async function downloadPhoto(){
   const img = document.getElementById('mainMedia');
   if(!img) return;
@@ -423,45 +504,38 @@ async function downloadPhoto(){
   isRendering = true;
   await new Promise(r=>setTimeout(r,200));
   const canvas = document.createElement('canvas');
-  canvas.width = img.naturalWidth;
-  canvas.height = img.naturalHeight;
+  canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
   const ctx = canvas.getContext('2d');
   const filterStr = FILTER_MAP[curFilter] || 'none';
   try { ctx.filter = filterStr; } catch(e){ ctx.filter='none'; }
-  ctx.drawImage(img, 0, 0);
-  ctx.filter='none';
+  ctx.drawImage(img, 0, 0); ctx.filter='none';
   let finalCanvas = canvas;
   if(curFilter === 'framePutih' || curFilter === 'frameHitam' || curFilter === 'frameEmas'){
     const fs = Math.round(Math.min(canvas.width, canvas.height) * 0.05);
     const nc = document.createElement('canvas');
-    nc.width = canvas.width + fs*2;
-    nc.height = canvas.height + fs*2;
+    nc.width = canvas.width + fs*2; nc.height = canvas.height + fs*2;
     const nctx = nc.getContext('2d');
     nctx.fillStyle = curFilter==='frameEmas' ? '#d4af37' : (curFilter==='frameHitam' ? '#000' : '#fff');
     nctx.fillRect(0,0,nc.width,nc.height);
-    nctx.drawImage(canvas, fs, fs);
-    finalCanvas = nc;
+    nctx.drawImage(canvas, fs, fs); finalCanvas = nc;
   }
   if(curFilter === 'rounded'){
     const w = canvas.width, h = canvas.height;
     const r = Math.round(Math.min(w,h) * 0.08);
-    const nc = document.createElement('canvas');
-    nc.width = w; nc.height = h;
+    const nc = document.createElement('canvas'); nc.width = w; nc.height = h;
     const nctx = nc.getContext('2d');
     nctx.beginPath();
     nctx.moveTo(r,0); nctx.lineTo(w-r,0); nctx.quadraticCurveTo(w,0,w,r);
     nctx.lineTo(w,h-r); nctx.quadraticCurveTo(w,h,w-r,h);
     nctx.lineTo(r,h); nctx.quadraticCurveTo(0,h,0,h-r);
     nctx.lineTo(0,r); nctx.quadraticCurveTo(0,0,r,0);
-    nctx.closePath(); nctx.clip();
-    nctx.drawImage(canvas, 0, 0);
+    nctx.closePath(); nctx.clip(); nctx.drawImage(canvas, 0, 0);
     finalCanvas = nc;
   }
   bar.style.width='90%'; perc.textContent='90%';
   const out = finalCanvas.toDataURL('image/jpeg', 0.95);
   const a = document.createElement('a');
-  a.href = out;
-  a.download = 'filterlab_foto_' + Date.now() + '.jpg';
+  a.href = out; a.download = 'filterlab_foto_' + Date.now() + '.jpg';
   a.click();
   bar.style.width='100%'; perc.textContent='Selesai!';
   isRendering = false;
@@ -469,124 +543,23 @@ async function downloadPhoto(){
   setTimeout(()=>prog.style.display='none',1500);
 }
 
-/* ===== RENDER VIDEO EDITOR (LANCAR SESUAI FPS) ===== */
 async function downloadVideo(){
   const video = document.getElementById('mainMedia');
   if(!video) return;
   const prog=document.getElementById('prog'), bar=document.getElementById('barIn'), perc=document.getElementById('perc');
-  prog.style.display='block';
-  isRendering = true;
+  prog.style.display='block'; isRendering = true;
   perc.textContent='Menyiapkan...'; bar.style.width='5%';
-  
+  showToast('🎬 Render video dimulai...', 'info');
   const filterStr = FILTER_MAP[curFilter] || 'none';
-  const videoW = video.videoWidth || 720;
-  const videoH = video.videoHeight || 1280;
-  
-  const canvas = document.createElement('canvas');
-  canvas.width = videoW;
-  canvas.height = videoH;
-  const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
-  
-  if(typeof MediaRecorder === 'undefined'){
-    showToast('❌ Browser tidak mendukung render video.', 'error');
-    isRendering = false; prog.style.display='none'; return;
-  }
-  
-  let mimeType = 'video/webm;codecs=vp9';
-  if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm;codecs=vp8';
-  if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm';
-  if(!MediaRecorder.isTypeSupported(mimeType)){
-    showToast('❌ Browser tidak mendukung WebM.', 'error');
-    isRendering = false; prog.style.display='none'; return;
-  }
-  
-  const pixels = videoW * videoH;
-  let bitrate = 4000000;
-  if(pixels >= 1920*1080) bitrate = 8000000;
-  else if(pixels >= 1280*720) bitrate = 6000000;
-  else if(pixels >= 854*480) bitrate = 4000000;
-  else bitrate = 2500000;
-  
-  const stream = canvas.captureStream(0);
-  const track = stream.getVideoTracks()[0];
-  const chunks = [];
-  const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: bitrate });
-  recorder.ondataavailable = e => { if(e.data.size > 0) chunks.push(e.data); };
-  
-  video.pause();
-  video.muted = true;
-  video.currentTime = 0;
-  await new Promise(r => { 
-    if(video.readyState >= 2) return r();
-    video.onloadeddata = r;
-    setTimeout(r, 500);
-  });
-  
-  recorder.start(100);
-  video.play();
-  
-  const duration = video.duration || 10;
-  const startTime = Date.now();
-  showToast('🎬 Render video dimulai... Jangan tutup halaman!', 'info');
-  
-  let isDone = false;
-  function renderFrame(){
-    if(isDone) return;
-    if(video.ended || video.paused || video.currentTime >= duration){
-      isDone = true; finishRender(); return;
-    }
-    try {
-      ctx.filter = filterStr;
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      ctx.filter = 'none';
-    } catch(e){
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    }
-    if(track.requestFrame) track.requestFrame();
-    const elapsed = (Date.now() - startTime) / 1000;
-    const pct = Math.min(98, Math.round((elapsed/duration)*100));
-    bar.style.width = pct+'%';
-    perc.textContent = pct+'%';
-    if('requestVideoFrameCallback' in HTMLVideoElement.prototype){
-      video.requestVideoFrameCallback(renderFrame);
-    } else {
-      requestAnimationFrame(renderFrame);
-    }
-  }
-  
-  if('requestVideoFrameCallback' in HTMLVideoElement.prototype){
-    video.requestVideoFrameCallback(renderFrame);
-  } else {
-    requestAnimationFrame(renderFrame);
-  }
-  
-  setTimeout(()=>{ if(!isDone){ isDone = true; finishRender(); } }, duration*1000 + 5000);
-  
-  async function finishRender(){
-    video.pause();
-    try { recorder.stop(); } catch(e){}
-    await new Promise(r => { 
-      if(recorder.state === 'inactive') return r();
-      recorder.onstop = r;
-      setTimeout(r, 1000);
-    });
-    if(chunks.length === 0){
-      showToast('❌ Render gagal. Coba lagi.', 'error');
-      isRendering = false; prog.style.display='none'; return;
-    }
-    const blob = new Blob(chunks, { type: mimeType });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'filterlab_video_' + Date.now() + '.webm';
-    a.click();
-    bar.style.width='100%'; perc.textContent='Selesai!';
-    isRendering = false;
-    showToast('✅ Video berhasil diunduh!');
-    setTimeout(()=>{ prog.style.display='none'; URL.revokeObjectURL(url); }, 2500);
-  }
+  const blob = await renderVideoToBlob(video, filterStr, '', (pct)=>{ bar.style.width=pct+'%'; perc.textContent=pct+'%'; });
+  if(!blob){ showToast('❌ Render gagal.', 'error'); isRendering = false; prog.style.display='none'; return; }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url;
+  a.download = 'filterlab_video_' + Date.now() + '.webm'; a.click();
+  bar.style.width='100%'; perc.textContent='Selesai!';
+  isRendering = false;
+  showToast('✅ Video berhasil diunduh!');
+  setTimeout(()=>{ prog.style.display='none'; URL.revokeObjectURL(url); }, 2500);
 }
 
 function startDl(){
@@ -625,12 +598,10 @@ function pickAI(el){
 async function runAI(){
   if(aiFiles.length===0) return;
   const btn=document.getElementById('aiRun'), prog=document.getElementById('aiProg'), bar=document.getElementById('aiBar'), perc=document.getElementById('aiPerc');
-  btn.disabled=true; prog.style.display='block';
-  isRendering = true;
+  btn.disabled=true; prog.style.display='block'; isRendering = true;
   const result = document.getElementById('aiResult'); result.innerHTML='';
   const wmText = document.getElementById('wmText').value.trim();
   const total = aiFiles.length;
-  
   for(let i=0;i<total;i++){
     const f = aiFiles[i];
     const pct = Math.round(((i+1)/total)*100);
@@ -645,6 +616,7 @@ async function runAI(){
         <a href="${out}" download="filterlab_${aiMode}_${Date.now()}_${i}.jpg" style="display:block;text-align:center;margin-top:6px;background:rgba(139,92,246,.3);padding:8px;border-radius:8px;color:#fff;text-decoration:none;font-size:11px;font-weight:700">⬇ Simpan Hasil Foto</a>`;
       result.appendChild(box);
     } else {
+      // VIDEO - pakai renderVideoToBlob (logic Editor)
       const boxId = 'aiVideoBox_' + i;
       const box = document.createElement('div');
       box.id = boxId;
@@ -659,12 +631,41 @@ async function runAI(){
         </div>`;
       result.appendChild(box);
       
-      const out = await processVideoAI(f, aiMode, wmText, i);
+      // Buat video element di DOM (tidak tampil tapi ada)
+      const videoEl = document.createElement('video');
+      videoEl.src = URL.createObjectURL(f);
+      videoEl.muted = true;
+      videoEl.playsInline = true;
+      videoEl.preload = 'auto';
+      videoEl.style.position = 'fixed';
+      videoEl.style.left = '-9999px';
+      videoEl.style.width = '1px';
+      videoEl.style.height = '1px';
+      document.body.appendChild(videoEl);
+      
+      await new Promise((res)=>{ videoEl.onloadeddata = res; videoEl.onerror = res; setTimeout(res, 5000); });
+      
+      // Filter AI mode
+      let filterStr = '';
+      if(aiMode==='hd') filterStr = 'contrast(1.25) saturate(1.35) brightness(1.08)';
+      if(aiMode==='color') filterStr = 'contrast(1.15) saturate(1.9) hue-rotate(5deg) brightness(1.05)';
+      if(aiMode==='upscale') filterStr = 'contrast(1.3) saturate(1.4) brightness(1.1)';
+      
+      const vidBar = document.getElementById('aiVidBar_' + i);
+      const vidPct = document.getElementById('aiVidPct_' + i);
+      
+      const blob = await renderVideoToBlob(videoEl, filterStr, wmText, (p)=>{ if(vidBar) vidBar.style.width=p+'%'; if(vidPct) vidPct.textContent=p+'%'; });
+      
+      // Hapus video element sementara
+      document.body.removeChild(videoEl);
+      URL.revokeObjectURL(videoEl.src);
+      
       const boxEl = document.getElementById(boxId);
-      if(out){
+      if(blob){
+        const outUrl = URL.createObjectURL(blob);
         boxEl.innerHTML = `<div style="font-size:11px;opacity:.7;margin:8px 0 4px">✅ Hasil Video ${i+1}/${total}: ${f.name}</div>
-          <video src="${out}" controls muted style="width:100%;border-radius:10px;border:1px solid rgba(139,92,246,.4);background:#000"></video>
-          <a href="${out}" download="filterlab_${aiMode}_video_${Date.now()}_${i}.webm" style="display:block;text-align:center;margin-top:6px;background:rgba(139,92,246,.3);padding:8px;border-radius:8px;color:#fff;text-decoration:none;font-size:11px;font-weight:700">⬇ Simpan Hasil Video</a>`;
+          <video src="${outUrl}" controls muted style="width:100%;border-radius:10px;border:1px solid rgba(139,92,246,.4);background:#000"></video>
+          <a href="${outUrl}" download="filterlab_${aiMode}_video_${Date.now()}_${i}.webm" style="display:block;text-align:center;margin-top:6px;background:rgba(139,92,246,.3);padding:8px;border-radius:8px;color:#fff;text-decoration:none;font-size:11px;font-weight:700">⬇ Simpan Hasil Video</a>`;
       } else {
         boxEl.innerHTML = `<div style="font-size:11px;opacity:.7;margin:8px 0 4px">❌ Video ${i+1}/${total}: ${f.name}</div>
           <p style="font-size:10px;opacity:.6;padding:8px;background:rgba(239,68,68,.1);border-radius:8px;border:1px solid rgba(239,68,68,.3)">Gagal render video. Coba lagi atau pakai video lebih pendek.</p>`;
@@ -684,15 +685,13 @@ function processImage(img, mode, wm){
   const w = img.naturalWidth * scale, h = img.naturalHeight * scale;
   const c = document.createElement('canvas'); c.width=w; c.height=h;
   const ctx = c.getContext('2d');
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
   let filter='';
   if(mode==='hd') filter='contrast(1.25) saturate(1.35) brightness(1.08)';
   if(mode==='color') filter='contrast(1.15) saturate(1.9) hue-rotate(5deg) brightness(1.05)';
   if(mode==='upscale') filter='contrast(1.3) saturate(1.4) brightness(1.1)';
   try { ctx.filter = filter || 'none'; } catch(e){}
-  ctx.drawImage(img, 0, 0, w, h);
-  ctx.filter='none';
+  ctx.drawImage(img, 0, 0, w, h); ctx.filter='none';
   if(wm){
     const fs = Math.max(14, Math.round(w*0.035));
     ctx.font = `bold ${fs}px Inter, Arial`;
@@ -703,140 +702,6 @@ function processImage(img, mode, wm){
     ctx.fillText(wm, w-16, h-16);
   }
   return c.toDataURL('image/jpeg', 0.95);
-}
-
-/* ===== PROSES VIDEO AI (RENDER LANCAR SESUAI FPS) ===== */
-async function processVideoAI(file, mode, wm, index){
-  return new Promise(async (resolve)=>{
-    try {
-      const url = URL.createObjectURL(file);
-      const video = document.createElement('video');
-      video.src = url;
-      video.muted = true;
-      video.playsInline = true;
-      video.preload = 'auto';
-      
-      await new Promise((res, rej)=>{
-        video.onloadeddata = res;
-        video.onerror = rej;
-        setTimeout(rej, 10000);
-      });
-      
-      const videoW = video.videoWidth || 720;
-      const videoH = video.videoHeight || 1280;
-      
-      const canvas = document.createElement('canvas');
-      canvas.width = videoW;
-      canvas.height = videoH;
-      const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-      
-      if(typeof MediaRecorder === 'undefined'){ resolve(null); return; }
-      
-      let mimeType = 'video/webm;codecs=vp9';
-      if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm;codecs=vp8';
-      if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm';
-      
-      const pixels = videoW * videoH;
-      let bitrate = 4000000;
-      if(pixels >= 1920*1080) bitrate = 8000000;
-      else if(pixels >= 1280*720) bitrate = 6000000;
-      else if(pixels >= 854*480) bitrate = 4000000;
-      else bitrate = 2500000;
-      
-      const stream = canvas.captureStream(0);
-      const track = stream.getVideoTracks()[0];
-      const chunks = [];
-      const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: bitrate });
-      recorder.ondataavailable = e => { if(e.data.size > 0) chunks.push(e.data); };
-      
-      let filterStr = '';
-      if(mode==='hd') filterStr = 'contrast(1.25) saturate(1.35) brightness(1.08)';
-      if(mode==='color') filterStr = 'contrast(1.15) saturate(1.9) hue-rotate(5deg) brightness(1.05)';
-      if(mode==='upscale') filterStr = 'contrast(1.3) saturate(1.4) brightness(1.1)';
-      
-      video.currentTime = 0;
-      await new Promise(r => setTimeout(r, 300));
-      
-      recorder.start(100);
-      video.play();
-      
-      const duration = video.duration || 10;
-      const startTime = Date.now();
-      const vidBar = document.getElementById('aiVidBar_' + index);
-      const vidPct = document.getElementById('aiVidPct_' + index);
-      
-      let isDone = false;
-      function renderFrame(){
-        if(isDone) return;
-        if(video.ended || video.paused || video.currentTime >= duration){
-          isDone = true; finish(); return;
-        }
-        try {
-          if(filterStr){
-            ctx.filter = filterStr;
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            ctx.filter = 'none';
-          } else {
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          }
-          if(wm){
-            const fs = Math.max(14, Math.round(canvas.width * 0.035));
-            ctx.font = `bold ${fs}px Inter, Arial`;
-            ctx.textAlign = 'right';
-            ctx.textBaseline = 'bottom';
-            ctx.fillStyle = 'rgba(0,0,0,.55)';
-            ctx.fillText(wm, canvas.width-16+1, canvas.height-16+1);
-            ctx.fillStyle = 'rgba(255,255,255,.9)';
-            ctx.fillText(wm, canvas.width-16, canvas.height-16);
-          }
-        } catch(e){
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        }
-        if(track.requestFrame) track.requestFrame();
-        const elapsed = (Date.now() - startTime) / 1000;
-        const pct = Math.min(98, Math.round((elapsed/duration)*100));
-        if(vidBar) vidBar.style.width = pct+'%';
-        if(vidPct) vidPct.textContent = pct+'%';
-        if('requestVideoFrameCallback' in HTMLVideoElement.prototype){
-          video.requestVideoFrameCallback(renderFrame);
-        } else {
-          requestAnimationFrame(renderFrame);
-        }
-      }
-      
-      if('requestVideoFrameCallback' in HTMLVideoElement.prototype){
-        video.requestVideoFrameCallback(renderFrame);
-      } else {
-        requestAnimationFrame(renderFrame);
-      }
-      
-      setTimeout(()=>{ if(!isDone){ isDone = true; finish(); } }, duration*1000 + 5000);
-      
-      async function finish(){
-        video.pause();
-        try { recorder.stop(); } catch(e){}
-        await new Promise(r => { 
-          if(recorder.state === 'inactive') return r();
-          recorder.onstop = r;
-          setTimeout(r, 1000);
-        });
-        if(chunks.length === 0){
-          URL.revokeObjectURL(url);
-          resolve(null);
-          return;
-        }
-        const blob = new Blob(chunks, { type: mimeType });
-        const outUrl = URL.createObjectURL(blob);
-        URL.revokeObjectURL(url);
-        resolve(outUrl);
-      }
-    } catch(err){
-      console.error('Video AI error:', err);
-      resolve(null);
-    }
-  });
 }
 
 /* ===== CHAT ===== */
@@ -855,38 +720,20 @@ document.getElementById('chatFile').addEventListener('change', e=>{
   };
   r.readAsDataURL(f);
 });
-function clearChatImg(){
-  chatImgData = null;
-  document.getElementById('chatImgPreview').style.display = 'none';
-  document.getElementById('chatFile').value = '';
-}
-chatInput.addEventListener('keydown', e=>{
-  if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendChat(); }
-});
-chatInput.addEventListener('input', ()=>{
-  chatInput.style.height = 'auto';
-  chatInput.style.height = Math.min(chatInput.scrollHeight, 70) + 'px';
-});
+function clearChatImg(){ chatImgData = null; document.getElementById('chatImgPreview').style.display = 'none'; document.getElementById('chatFile').value = ''; }
+chatInput.addEventListener('keydown', e=>{ if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); sendChat(); } });
+chatInput.addEventListener('input', ()=>{ chatInput.style.height = 'auto'; chatInput.style.height = Math.min(chatInput.scrollHeight, 70) + 'px'; });
 function quickAsk(text){ chatInput.value = text; sendChat(); }
 
 function addChatMsg(text, who, imgSrc, statusText){
-  const div = document.createElement('div');
-  div.className = 'chatMsg ' + who;
+  const div = document.createElement('div'); div.className = 'chatMsg ' + who;
   const av = who === 'user' ? '👤' : '🤖';
   let imgHtml = imgSrc ? `<img src="${imgSrc}" alt="foto">` : '';
   let statusHtml = statusText ? `<div class="status">${statusText}</div>` : '';
   div.innerHTML = `<div class="av">${av}</div><div class="bubble">${statusHtml}${imgHtml}${text}</div>`;
-  chatWindow.appendChild(div);
-  chatWindow.scrollTop = chatWindow.scrollHeight;
+  chatWindow.appendChild(div); chatWindow.scrollTop = chatWindow.scrollHeight;
 }
-function addTyping(){
-  const div = document.createElement('div');
-  div.className = 'chatMsg ai';
-  div.id = 'typingMsg';
-  div.innerHTML = `<div class="av">🤖</div><div class="bubble"><span class="typing">AI sedang memproses</span></div>`;
-  chatWindow.appendChild(div);
-  chatWindow.scrollTop = chatWindow.scrollHeight;
-}
+function addTyping(){ const div = document.createElement('div'); div.className = 'chatMsg ai'; div.id = 'typingMsg'; div.innerHTML = `<div class="av">🤖</div><div class="bubble"><span class="typing">AI sedang memproses</span></div>`; chatWindow.appendChild(div); chatWindow.scrollTop = chatWindow.scrollHeight; }
 function removeTyping(){ const t = document.getElementById('typingMsg'); if(t) t.remove(); }
 
 const DAFTAR_PERINTAH = `📋 DAFTAR LENGKAP SEMUA PERINTAH (110+)
@@ -921,12 +768,10 @@ const DAFTAR_PERINTAH = `📋 DAFTAR LENGKAP SEMUA PERINTAH (110+)
 • perjelas / perjelas foto
 • tingkatkan ketajaman
 • perbaiki kualitas
-• buat lebih jernih
 
 🌸 HALUSKAN KULIT
 • haluskan kulit / haluskan wajah
 • buat kulit lebih mulus
-• perhalus wajah
 
 🎨 UBAH KE ANIME
 • ubah ke anime / buat gaya anime
@@ -941,18 +786,15 @@ const DAFTAR_PERINTAH = `📋 DAFTAR LENGKAP SEMUA PERINTAH (110+)
 🟤 SEPIA
 • buat sepia / jadikan sepia
 • buat warna cokelat
-• buat nuansa cokelat klasik
 
 📻 VINTAGE / JADUL
 • buat vintage / jadikan vintage
 • buat retro / buat jadul
-• buat nuansa zaman dahulu
 • buat nuansa 90an / 80an / 70an
 
 🎬 TEAL & ORANGE
 • buat teal orange
 • buat efek film Hollywood
-• buat cinema look
 
 📼 VHS EFFECT
 • buat efek VHS
@@ -961,54 +803,39 @@ const DAFTAR_PERINTAH = `📋 DAFTAR LENGKAP SEMUA PERINTAH (110+)
 🌟 HDR EFFECT
 • buat efek HDR
 • buat warna dramatis
-• tingkatkan kontras warna
 
 ✨ LIGHT LEAK
 • buat light leak
-• buat kebocoran cahaya🌫️ BLUR / KABUR
+• buat kebocoran cahaya
+
+🌫️ BLUR / KABUR
 • buat blur / kaburkan
-• buat buram
-• buat dreamy
-• buat efek bokeh
+• buat buram / dreamy
 
 🔄 BALIK WARNA / INVERT
-• balik warna
-• buat negatif
-• buat kebalikan warna
+• balik warna / buat negatif
 
 🔥 HANGAT / WARM
 • buat hangat
-• buat nuansa hangat
-• buat nuansa oranye
 • buat nuansa sunset / senja
 • buat golden hour
 
 ❄️ DINGIN / COOL
 • buat dingin
-• buat nuansa dingin
-• buat nuansa biru
-• buat nuansa salju
+• buat nuansa biru / salju
 
 🌸 PUDAR / KALEM
 • buat pudar / pudarkan
-• buat pucat
-• kurangi warna
-• buat kalem
-• buat warna pastel
+• buat kalem / pastel
 
 🌈 VIVID / WARNA KUAT
 • buat vivid
-• buat warna kuat
-• buat warna hidup
-• buat warna meriah
-• tingkatkan saturasi
+• buat warna kuat / hidup / meriah
 
 ⚡ KONTRAS
 • tambahkan kontras
-• tingkatkan kontras
 • buat dramatis
-• kurangi kontras
-• buat flat / faded
+• kurangi kontras / flat
 
 ━━━━━━━━━━━━━━━━━━━━━
 
@@ -1021,16 +848,14 @@ const DAFTAR_PERINTAH = `📋 DAFTAR LENGKAP SEMUA PERINTAH (110+)
 📷 BINGKAI / FRAME
 • tambahkan bingkai putih / hitam / emas
 • buat seperti polaroid
-• buat seperti album foto
 
 📼 GRAIN / FILM JADUL
 • tambahkan grain / noise
 • buat efek film
-• buat tekstur film
 
 ✨ SOFT GLOW
 • tambahkan glow / soft glow
-• buat bersinar / bercahaya
+• buat bersinar
 
 🎨 TINT WARNA
 • tambahkan tint pink / biru / ungu / hijau / merah / kuning
@@ -1038,7 +863,6 @@ const DAFTAR_PERINTAH = `📋 DAFTAR LENGKAP SEMUA PERINTAH (110+)
 🌅 GOLDEN HOUR
 • buat golden hour
 • buat nuansa emas
-• buat nuansa matahari terbenam
 
 🪞 MIRROR EFFECT
 • buat mirror effect
@@ -1046,14 +870,12 @@ const DAFTAR_PERINTAH = `📋 DAFTAR LENGKAP SEMUA PERINTAH (110+)
 
 ⭕ ROUNDED CORNERS
 • buat sudut bulat
-• buat rounded
 
 ━━━━━━━━━━━━━━━━━━━━━
 
 🔄 PUTAR / ROTATE
 • putar 90 / 45 / 30 derajat
 • putar ke kiri / ke kanan
-• putar 180 / 270 derajat
 
 🪞 FLIP / CERMIN
 • cerminkan foto
@@ -1065,14 +887,12 @@ const DAFTAR_PERINTAH = `📋 DAFTAR LENGKAP SEMUA PERINTAH (110+)
 • buat untuk story / reels / feed Instagram
 
 📏 UKURAN / RESIZE
-• perkecil foto
-• perkecil jadi 800px
+• perkecil foto / perkecil jadi 800px
 • kompres jadi 50%
 
 💧 WATERMARK / TULISAN
 • tambahkan watermark Alipp
 • tambahkan watermark [teks Anda]
-• tulis "nama Anda"
 
 🎭 GABUNGAN (BISA BANYAK)
 • cerahkan + pertajam
@@ -1084,7 +904,6 @@ const DAFTAR_PERINTAH = `📋 DAFTAR LENGKAP SEMUA PERINTAH (110+)
 • buat estetik → Aesthetic Instagram
 • buat cakep → Cinematic
 • buat seperti zaman dahulu → Vintage
-• buat dreamy → Soft Glow
 • buat dramatis → HDR
 
 ━━━━━━━━━━━━━━━━━━━━━
@@ -1107,111 +926,61 @@ const DAFTAR_PERINTAH = `📋 DAFTAR LENGKAP SEMUA PERINTAH (110+)
 Ketik "tampilkan semua perintah" untuk melihat kembali.`;
 
 const KB = [
-  { keys:['halo','hai','hello','hi','hey','assalam','pagi','siang','malam','sore'],
-    ans:'Halo! 👋 Saya hanya dapat membantu EDIT FOTO.\n\nSilakan kirim foto melalui 📎 lalu tulis perintah.' },
-  { keys:['apa kabar','gimana kabar','how are you','kabarmu'],
-    ans:'Saya selalu siap membantu edit foto! 🤖' },
-  { keys:['siapa kamu','kamu siapa','nama kamu','nama mu','who are you','what are you','kamu apa'],
-    ans:'Saya asisten AI dari FilterLab, website buatan Alipp. Saya hanya dapat menjalankan PERINTAH EDIT FOTO.' },
-  { keys:['apa itu filterlab','filterlab itu apa','tentang filterlab','fungsi filterlab','kegunaan filterlab'],
-    ans:'FilterLab adalah website untuk memberikan EFEK dan FILTER pada foto dan video Anda. Dikembangkan oleh Alipp.' },
-  { keys:['cara pakai','gimana pakai','how to use','tutorial','panduan','cara menggunakan','cara kerja','bagaimana cara pakai ai ini','bagaimana cara menggunakan ai ini'],
-    ans:'Cara menggunakan AI ini:\n\n1. Tekan tombol 📎 di kiri kolom chat\n2. Pilih foto dari galeri\n3. Tulis perintah, contoh: "buat HD" atau "cerahkan foto"\n4. Tekan tombol Kirim\n5. Tunggu AI memproses\n6. Hasil akan muncul di chat, tekan "Simpan Hasil"' },
-  { keys:['contoh perintah','contoh command','contoh','example','misal','gimana nulisnya','cara nulis perintah','tampilkan semua perintah','daftar perintah','list perintah','semua perintah','perintah apa saja','apa saja perintah','perintahnya apa','apa perintahnya'],
-    ans: DAFTAR_PERINTAH },
-  { keys:['watermark','wm','kasih wm','kasih watermark','tambah watermark','tulis nama'],
-    ans:'Untuk menambahkan watermark: kirim foto Anda, lalu ketik "tambahkan watermark Alipp".' },
-  { keys:['putar','rotate','miring','balik posisi'],
-    ans:'Untuk memutar foto: kirim foto Anda, lalu ketik "putar 90 derajat".' },
-  { keys:['flip','cermin','mirror','balik kiri kanan'],
-    ans:'Untuk membalik foto: kirim foto Anda, lalu ketik "cerminkan foto".' },
-  { keys:['crop','potong','pangkas'],
-    ans:'Untuk memotong foto: kirim foto Anda, lalu ketik "potong persegi".' },
-  { keys:['resize','perkecil','perbesar ukuran','kompres','kecilkan'],
-    ans:'Untuk mengubah ukuran: kirim foto Anda, lalu ketik "perkecil jadi 800px".' },
-  { keys:['efek','filter','effect','list efek','daftar efek'],
-    ans:'Efek yang tersedia: HD, Sharpen, Halus Kulit, Anime, Hitam Putih, Cerah, Gelap, Vintage, Sepia, Teal Orange, VHS, HDR, Blur, Invert, Hangat, Dingin, Pudar, Vivid, Vignette, Bingkai, Grain, Glow, Tint, Golden Hour, Light Leak, Mirror, Sudut Bulat.' },
-  { keys:['cara edit foto','gimana edit foto','edit foto gimana','cara ubah foto'],
-    ans:'Kirim foto Anda melalui 📎, lalu tulis perintah.' },
-  { keys:['simpan','download','unduh','cara simpan'],
-    ans:'Setelah hasil edit muncul, tekan tombol "Simpan Hasil".' },
-  { keys:['video','mp4','edit video'],
-    ans:'Untuk video, buka tab ✂️ Editor atau 🤖 AI, unggah video, terapkan filter, lalu unduh. Hasil format WebM HD (lancar sesuai FPS video asli).' },
-  { keys:['gratis','bayar','harga','price','premium','berbayar'],
-    ans:'FilterLab sepenuhnya gratis.' },
-  { keys:['aman','privasi','data','upload ke server','server'],
-    ans:'Aman! Semua proses edit berjalan langsung di HP Anda menggunakan Canvas.' },
-  { keys:['refresh','reload','muat ulang'],
-    ans:'Untuk refresh: tarik layar ke bawah, atau tekan tombol 🔄 di kanan atas.' },
-  { keys:['lag','lambat','tersendat','lemot','patah'],
-    ans:'Kalau video render terasa lambat, itu normal untuk video panjang. Render pakai requestVideoFrameCallback = lancar sesuai FPS video. Tunggu sampai selesai ya.' },
-  { keys:['terima kasih','thanks','thank you','makasih','thx','tq'],
-    ans:'Sama-sama! 😊' },
-  { keys:['bye','selesai','dadah','sampai jumpa','goodbye'],
-    ans:'Sampai jumpa! 👋' },
-  { keys:['error','gak bisa','tidak bisa','gagal','rusak','bug','kenapa'],
-    ans:'Maaf 😅 Coba:\n1. Refresh halaman (tarik ke bawah)\n2. Pastikan file JPG/PNG/MP4\n3. Unggah ulang' },
-  { keys:['bagus','keren','mantap','nice','good','top'],
-    ans:'Terima kasih! 🙌' },
-  { keys:['saran','rekomendasi','tips','trick','trik'],
-    ans:'Tips editing:\n• Portrait → "HD + haluskan kulit"\n• Pemandangan → "cerahkan + HDR"\n• Feed IG → "potong persegi + bingkai emas"\n• Video → pakai tab Editor, hasil lebih lancar' },
+  { keys:['halo','hai','hello','hi','hey','assalam','pagi','siang','malam','sore'], ans:'Halo! 👋 Saya hanya dapat membantu EDIT FOTO.\n\nSilakan kirim foto melalui 📎 lalu tulis perintah.' },
+  { keys:['apa kabar','gimana kabar','how are you','kabarmu'], ans:'Saya selalu siap membantu edit foto! 🤖' },
+  { keys:['siapa kamu','kamu siapa','nama kamu','nama mu','who are you','what are you','kamu apa'], ans:'Saya asisten AI dari FilterLab, website buatan Alipp. Saya hanya dapat menjalankan PERINTAH EDIT FOTO.' },
+  { keys:['apa itu filterlab','filterlab itu apa','tentang filterlab','fungsi filterlab','kegunaan filterlab'], ans:'FilterLab adalah website untuk memberikan EFEK dan FILTER pada foto dan video Anda. Dikembangkan oleh Alipp.' },
+  { keys:['cara pakai','gimana pakai','how to use','tutorial','panduan','cara menggunakan','cara kerja','bagaimana cara pakai ai ini','bagaimana cara menggunakan ai ini'], ans:'Cara menggunakan AI ini:\n\n1. Tekan tombol 📎 di kiri kolom chat\n2. Pilih foto dari galeri\n3. Tulis perintah, contoh: "buat HD" atau "cerahkan foto"\n4. Tekan tombol Kirim\n5. Tunggu AI memproses\n6. Hasil akan muncul di chat, tekan "Simpan Hasil"' },
+  { keys:['contoh perintah','contoh command','contoh','example','misal','gimana nulisnya','cara nulis perintah','tampilkan semua perintah','daftar perintah','list perintah','semua perintah','perintah apa saja','apa saja perintah','perintahnya apa','apa perintahnya'], ans: DAFTAR_PERINTAH },
+  { keys:['watermark','wm','kasih wm','kasih watermark','tambah watermark','tulis nama'], ans:'Untuk menambahkan watermark: kirim foto Anda, lalu ketik "tambahkan watermark Alipp".' },
+  { keys:['putar','rotate','miring','balik posisi'], ans:'Untuk memutar foto: kirim foto Anda, lalu ketik "putar 90 derajat".' },
+  { keys:['flip','cermin','mirror','balik kiri kanan'], ans:'Untuk membalik foto: kirim foto Anda, lalu ketik "cerminkan foto".' },
+  { keys:['crop','potong','pangkas'], ans:'Untuk memotong foto: kirim foto Anda, lalu ketik "potong persegi".' },
+  { keys:['resize','perkecil','perbesar ukuran','kompres','kecilkan'], ans:'Untuk mengubah ukuran: kirim foto Anda, lalu ketik "perkecil jadi 800px".' },
+  { keys:['efek','filter','effect','list efek','daftar efek'], ans:'Efek yang tersedia: HD, Sharpen, Halus Kulit, Anime, Hitam Putih, Cerah, Gelap, Vintage, Sepia, Teal Orange, VHS, HDR, Blur, Invert, Hangat, Dingin, Pudar, Vivid, Vignette, Bingkai, Grain, Glow, Tint, Golden Hour, Light Leak, Mirror, Sudut Bulat.' },
+  { keys:['cara edit foto','gimana edit foto','edit foto gimana','cara ubah foto'], ans:'Kirim foto Anda melalui 📎, lalu tulis perintah.' },
+  { keys:['simpan','download','unduh','cara simpan'], ans:'Setelah hasil edit muncul, tekan tombol "Simpan Hasil".' },
+  { keys:['video','mp4','edit video'], ans:'Untuk video, buka tab ✂️ Editor atau 🤖 AI, unggah video, terapkan filter, lalu unduh. Hasil format WebM HD (lancar sesuai FPS video asli).' },
+  { keys:['gratis','bayar','harga','price','premium','berbayar'], ans:'FilterLab sepenuhnya gratis.' },
+  { keys:['aman','privasi','data','upload ke server','server'], ans:'Aman! Semua proses edit berjalan langsung di HP Anda menggunakan Canvas.' },
+  { keys:['refresh','reload','muat ulang'], ans:'Untuk refresh: tarik layar ke bawah, atau tekan tombol 🔄 di kanan atas.' },
+  { keys:['lag','lambat','tersendat','lemot','patah','fps'], ans:'Video render sekarang lancar sesuai FPS asli (pakai requestVideoFrameCallback). Kalau video panjang, render memang makan waktu — tunggu sampai selesai ya.' },
+  { keys:['terima kasih','thanks','thank you','makasih','thx','tq'], ans:'Sama-sama! 😊' },
+  { keys:['bye','selesai','dadah','sampai jumpa','goodbye'], ans:'Sampai jumpa! 👋' },
+  { keys:['error','gak bisa','tidak bisa','gagal','rusak','bug','kenapa'], ans:'Maaf 😅 Coba:\n1. Refresh halaman (tarik ke bawah)\n2. Pastikan file JPG/PNG/MP4\n3. Unggah ulang' },
+  { keys:['bagus','keren','mantap','nice','good','top'], ans:'Terima kasih! 🙌' },
+  { keys:['saran','rekomendasi','tips','trick','trik'], ans:'Tips editing:\n• Portrait → "HD + haluskan kulit"\n• Pemandangan → "cerahkan + HDR"\n• Feed IG → "potong persegi + bingkai emas"\n• Video → pakai tab Editor, hasil lebih lancar' },
 ];
 
 function parseCommands(text){
   const t = ' ' + text.toLowerCase().replace(/[^a-z0-9\s]/g,' ') + ' ';
   const ops = [];
-  if(/\b(cerahkan|terangin|diterangin|cerahin|dicerahin|cerah|terang|nyalain|nyala|kurang.?cahaya|bikin.?terang|bikin.?cerah|jadiin.?terang|jadiin.?cerah|terlalu.?gelap|kurang.?sinar|tambah.?cahaya|tambahin.?cahaya|naikin.?cahaya|brighten|bright|lighten|light|sunny|sinar|bersinar|glow|glowing)\b/.test(t))
-    ops.push({type:'filter', name:'bright'});
-  if(/\b(gelapkan|gelapin|digelapin|gelap|redup|redupin|suram|bikin.?gelap|jadiin.?gelap|darken|dark|dim|moody|misterius|horor|horror|serem|menakutkan)\b/.test(t))
-    ops.push({type:'filter', name:'dark'});
-  if(/\b(hd|hdp|hdkan|hd.?in|hd.?banget|hdpin|pertajam|tajemin|tajamin|tajam|perjelas|perjelasin|jelasin|jelas|jernihin|jernih|sharp|sharpen|enhance|upgrade|tingkatkan|kualitas|kualitasin|kinclong|kinclongin|bagusin|bikin.?bagus|jadiin.?bagus|kerenin|bikin.?keren|cakepin|bikin.?cakep|pro|cinematic|sinematik|bagus|keren|cakep|kece|maksimal|optimal|4k|qhd|fhd)\b/.test(t))
-    ops.push({type:'filter', name:'hd'});
-  if(/\b(soft.?skin|haluskan.?kulit|halusin.?kulit|mulusin|bikin.?mulus|smoothen|skin.?smooth|haluskan.?wajah|halusin.?wajah|bikin.?kulit|kulit.?halus)\b/.test(t))
-    ops.push({type:'filter', name:'softskin'});
-  if(/\b(sepia|sepia.?tone|warna.?cokelat|cokelat.?vintage|vintage.?cokelat|nuansa.?cokelat)\b/.test(t))
-    ops.push({type:'filter', name:'sepia'});
-  if(/\b(teal.?orange|teal.?and.?orange|efek.?film.?hollywood|warna.?film|cinema.?look|blockbuster|hollywood.?style|nuansa.?film.?hollywood)\b/.test(t))
-    ops.push({type:'filter', name:'tealorange'});
-  if(/\b(vhs|vhs.?effect|kaset.?jadul|efek.?rusak|retro.?vhs|80s.?vhs|efek.?kaset)\b/.test(t))
-    ops.push({type:'filter', name:'vhs'});
-  if(/\b(hdr|hdr.?effect|warna.?dramatis|kontras.?vivid|warna.?ngejreng.?banget|super.?vivid|punchy.?color|warna.?kuat.?banget)\b/.test(t))
-    ops.push({type:'filter', name:'hdr'});
-  if(/\b(light.?leak|kebocoran.?cahaya|cahaya.?bocor|efek.?sinar|sunlight.?leak|film.?leak|kebocoran.?sinar|sinar.?bocor)\b/.test(t))
-    ops.push({type:'filter', name:'lightleak'});
-  if(/\b(anime|animein|jadiin.?anime|bikin.?anime|kayak.?anime|gaya.?anime|kartun|kartunin|cartoon|toon|manga|animasi|waifu|otaku|jepang|kawaii|chibi)\b/.test(t))
-    ops.push({type:'filter', name:'anime'});
-  if(/\b(hitam.?putih|hitamputih|bikin.?hitam.?putih|jadiin.?hitam.?putih|black.?white|grayscale|greyscale|gray|grey|monokrom|monochrome|bw|b.?w|kelabu|tanpa.?warna|hilangin.?warna|hapus.?warna|no.?color)\b/.test(t))
-    ops.push({type:'filter', name:'bw'});
-  if(/\b(vintage|vintagein|bikin.?vintage|retro|retroin|jadul|jadulin|bikin.?jadul|jadiin.?jadul|klasik|classic|kuno|antik|nostalgia|nostalgic|old|oldies|oldschool|jaman.?dulu|zaman.?dulu|zaman.?lama|kayak.?jaman.?dulu|vibes.?jadul|gaya.?lama|80an|90an|70an|60an|lawas)\b/.test(t))
-    ops.push({type:'filter', name:'vintage'});
-  if(/\b(blur|blurin|blurkan|kabur|kaburin|buram|buramin|lembut|lembutin|halus|halusin|smooth|soft|soften|dreamy|mimpi|bokeh|kurangin.?tajam|kurangin.?detail)\b/.test(t))
-    ops.push({type:'filter', name:'blur'});
-  if(/\b(invert|invertin|negatif|negative|kebalik|kebalikin|balik.?warna|balikin.?warna|terbalik.?warna|anti.?warna)\b/.test(t))
-    ops.push({type:'filter', name:'invert'});
-  if(/\b(hangat|hangatin|hangatkan|panas|panasin|cozy|nyaman|warm|warmin|warm.?tone|oren|orange|oranye|kuning|kuningin|matahari|sunny|sunset|senja|sore|petang|autumn|musim.?gugur|golden|golden.?hour|kayak.?sore|suasana.?hangat|bikin.?hangat)\b/.test(t))
-    ops.push({type:'filter', name:'warm'});
-  if(/\b(dingin|dinginin|dinginkan|adem|ademin|sejuk|sejukin|cool|coolin|cool.?tone|biru|biruin|blue|es|salju|bersalju|winter|musim.?dingin|cold|segar|fresher)\b/.test(t))
-    ops.push({type:'filter', name:'cool'});
-  if(/\b(pudar|pudarin|pudarkan|pucat|pucatin|pasir|desaturate|desaturasi|kurangin.?warna|kurangin.?saturasi|saturasi.?rendah|warna.?hilang|warna.?pudar|kalem|kalemin|bikin.?kalem|jadiin.?kalem|tenang|tenangin|damai|muted|pastel|pastelin|soft.?color|warna.?lembut|warna.?soft|jangan.?rame|jangan.?ngejreng|mellow|kalem.?aja|soft.?aja)\b/.test(t))
-    ops.push({type:'filter', name:'desaturate'});
-  if(/\b(vivid|vividin|saturate|saturasi|saturasi.?tinggi|naikin.?warna|tambah.?warna|tambahin.?warna|warnain|warnai|warna.?kuat|warna.?hidup|warna.?ngejreng|ngejreng|ngejrengin|meriah|meriahin|mencolok|pekat|pekatin|colorful|colourful|ceria|ceriain|warna.?warni|berwarna|penuh.?warna|warna.?vivid|rame.?warna|warna.?rame|punchy|pop)\b/.test(t))
-    ops.push({type:'filter', name:'saturate'});
-  if(/\b(tambah.?kontras|tambahin.?kontras|naikin.?kontras|kontras.?tinggi|kontras.?naik|kontras.?tajam|dramatis|dramatic|tegang|intense|epik|epic|megah|heroik)\b/.test(t))
-    ops.push({type:'filter', name:'contrastUp'});
-  if(/\b(kurangin.?kontras|turunin.?kontras|kontras.?rendah|kontras.?turun|kontras.?lembut|kontras.?flat|flat|faded|fade|memudar|kurang.?tegas|soft.?kontras)\b/.test(t))
-    ops.push({type:'filter', name:'contrastDown'});
-  if(/\b(vignette|vignetin|kasih.?vignette|tambahkan.?vignette|gelapin.?pinggir|gelapin.?pinggirnya|gelapkan.?pinggir|gelapin.?tepi|pinggiran.?gelap|pinggir.?gelap|fokus.?tengah|fokus.?ke.?tengah|gelapin.?sudut)\b/.test(t))
-    ops.push({type:'vignette'});
-  if(/\b(bingkai.?emas|frame.?emas|bingkai.?gold|gold.?frame|frame.?gold|bingkai.?kuning.?emas)\b/.test(t))
-    ops.push({type:'frame', color:'gold'});
-  else if(/\b(bingkai.?hitam|frame.?hitam|black.?frame)\b/.test(t))
-    ops.push({type:'frame', color:'black'});
-  else if(/\b(bingkai.?putih|frame.?putih|white.?frame|polaroid|kayak.?polaroid|bikin.?polaroid|album.?foto|kasih.?frame|kasih.?bingkai|bingkai|bingkain|bikin.?bingkai|bikin.?frame|tambahkan.?bingkai|tambahkan.?frame)\b/.test(t))
-    ops.push({type:'frame', color:'white'});
-  if(/\b(grain|kasih.?grain|efek.?film|bikin.?kayak.?film|noise|kasih.?noise|analog|kasih.?analog|film.?jadul|efek.?kaset|tekstur.?film|tekstur.?jadul|tambahkan.?grain|tambahkan.?noise)\b/.test(t))
-    ops.push({type:'grain'});
-  if(/\b(soft.?glow|kasih.?glow|kasih.?glowing|bikin.?glow|bikin.?bersinar|bikin.?bercahaya|efek.?glow|efek.?bersinar|dreamy.?glow|kayak.?mimpi|dreamy|tambahkan.?glow)\b/.test(t))
-    ops.push({type:'glow'});
+  if(/\b(cerahkan|terangin|diterangin|cerahin|dicerahin|cerah|terang|nyalain|nyala|kurang.?cahaya|bikin.?terang|bikin.?cerah|jadiin.?terang|jadiin.?cerah|terlalu.?gelap|kurang.?sinar|tambah.?cahaya|tambahin.?cahaya|naikin.?cahaya|brighten|bright|lighten|light|sunny|sinar|bersinar|glow|glowing)\b/.test(t)) ops.push({type:'filter', name:'bright'});
+  if(/\b(gelapkan|gelapin|digelapin|gelap|redup|redupin|suram|bikin.?gelap|jadiin.?gelap|darken|dark|dim|moody|misterius|horor|horror|serem|menakutkan)\b/.test(t)) ops.push({type:'filter', name:'dark'});
+  if(/\b(hd|hdp|hdkan|hd.?in|hd.?banget|hdpin|pertajam|tajemin|tajamin|tajam|perjelas|perjelasin|jelasin|jelas|jernihin|jernih|sharp|sharpen|enhance|upgrade|tingkatkan|kualitas|kualitasin|kinclong|kinclongin|bagusin|bikin.?bagus|jadiin.?bagus|kerenin|bikin.?keren|cakepin|bikin.?cakep|pro|cinematic|sinematik|bagus|keren|cakep|kece|maksimal|optimal|4k|qhd|fhd)\b/.test(t)) ops.push({type:'filter', name:'hd'});
+  if(/\b(soft.?skin|haluskan.?kulit|halusin.?kulit|mulusin|bikin.?mulus|smoothen|skin.?smooth|haluskan.?wajah|halusin.?wajah|bikin.?kulit|kulit.?halus)\b/.test(t)) ops.push({type:'filter', name:'softskin'});
+  if(/\b(sepia|sepia.?tone|warna.?cokelat|cokelat.?vintage|vintage.?cokelat|nuansa.?cokelat)\b/.test(t)) ops.push({type:'filter', name:'sepia'});
+  if(/\b(teal.?orange|teal.?and.?orange|efek.?film.?hollywood|warna.?film|cinema.?look|blockbuster|hollywood.?style|nuansa.?film.?hollywood)\b/.test(t)) ops.push({type:'filter', name:'tealorange'});
+  if(/\b(vhs|vhs.?effect|kaset.?jadul|efek.?rusak|retro.?vhs|80s.?vhs|efek.?kaset)\b/.test(t)) ops.push({type:'filter', name:'vhs'});
+  if(/\b(hdr|hdr.?effect|warna.?dramatis|kontras.?vivid|warna.?ngejreng.?banget|super.?vivid|punchy.?color|warna.?kuat.?banget)\b/.test(t)) ops.push({type:'filter', name:'hdr'});
+  if(/\b(light.?leak|kebocoran.?cahaya|cahaya.?bocor|efek.?sinar|sunlight.?leak|film.?leak|kebocoran.?sinar|sinar.?bocor)\b/.test(t)) ops.push({type:'filter', name:'lightleak'});
+  if(/\b(anime|animein|jadiin.?anime|bikin.?anime|kayak.?anime|gaya.?anime|kartun|kartunin|cartoon|toon|manga|animasi|waifu|otaku|jepang|kawaii|chibi)\b/.test(t)) ops.push({type:'filter', name:'anime'});
+  if(/\b(hitam.?putih|hitamputih|bikin.?hitam.?putih|jadiin.?hitam.?putih|black.?white|grayscale|greyscale|gray|grey|monokrom|monochrome|bw|b.?w|kelabu|tanpa.?warna|hilangin.?warna|hapus.?warna|no.?color)\b/.test(t)) ops.push({type:'filter', name:'bw'});
+  if(/\b(vintage|vintagein|bikin.?vintage|retro|retroin|jadul|jadulin|bikin.?jadul|jadiin.?jadul|klasik|classic|kuno|antik|nostalgia|nostalgic|old|oldies|oldschool|jaman.?dulu|zaman.?dulu|zaman.?lama|kayak.?jaman.?dulu|vibes.?jadul|gaya.?lama|80an|90an|70an|60an|lawas)\b/.test(t)) ops.push({type:'filter', name:'vintage'});
+  if(/\b(blur|blurin|blurkan|kabur|kaburin|buram|buramin|lembut|lembutin|halus|halusin|smooth|soft|soften|dreamy|mimpi|bokeh|kurangin.?tajam|kurangin.?detail)\b/.test(t)) ops.push({type:'filter', name:'blur'});
+  if(/\b(invert|invertin|negatif|negative|kebalik|kebalikin|balik.?warna|balikin.?warna|terbalik.?warna|anti.?warna)\b/.test(t)) ops.push({type:'filter', name:'invert'});
+  if(/\b(hangat|hangatin|hangatkan|panas|panasin|cozy|nyaman|warm|warmin|warm.?tone|oren|orange|oranye|kuning|kuningin|matahari|sunny|sunset|senja|sore|petang|autumn|musim.?gugur|golden|golden.?hour|kayak.?sore|suasana.?hangat|bikin.?hangat)\b/.test(t)) ops.push({type:'filter', name:'warm'});
+  if(/\b(dingin|dinginin|dinginkan|adem|ademin|sejuk|sejukin|cool|coolin|cool.?tone|biru|biruin|blue|es|salju|bersalju|winter|musim.?dingin|cold|segar|fresher)\b/.test(t)) ops.push({type:'filter', name:'cool'});
+  if(/\b(pudar|pudarin|pudarkan|pucat|pucatin|pasir|desaturate|desaturasi|kurangin.?warna|kurangin.?saturasi|saturasi.?rendah|warna.?hilang|warna.?pudar|kalem|kalemin|bikin.?kalem|jadiin.?kalem|tenang|tenangin|damai|muted|pastel|pastelin|soft.?color|warna.?lembut|warna.?soft|jangan.?rame|jangan.?ngejreng|mellow|kalem.?aja|soft.?aja)\b/.test(t)) ops.push({type:'filter', name:'desaturate'});
+  if(/\b(vivid|vividin|saturate|saturasi|saturasi.?tinggi|naikin.?warna|tambah.?warna|tambahin.?warna|warnain|warnai|warna.?kuat|warna.?hidup|warna.?ngejreng|ngejreng|ngejrengin|meriah|meriahin|mencolok|pekat|pekatin|colorful|colourful|ceria|ceriain|warna.?warni|berwarna|penuh.?warna|warna.?vivid|rame.?warna|warna.?rame|punchy|pop)\b/.test(t)) ops.push({type:'filter', name:'saturate'});
+  if(/\b(tambah.?kontras|tambahin.?kontras|naikin.?kontras|kontras.?tinggi|kontras.?naik|kontras.?tajam|dramatis|dramatic|tegang|intense|epik|epic|megah|heroik)\b/.test(t)) ops.push({type:'filter', name:'contrastUp'});
+  if(/\b(kurangin.?kontras|turunin.?kontras|kontras.?rendah|kontras.?turun|kontras.?lembut|kontras.?flat|flat|faded|fade|memudar|kurang.?tegas|soft.?kontras)\b/.test(t)) ops.push({type:'filter', name:'contrastDown'});
+  if(/\b(vignette|vignetin|kasih.?vignette|tambahkan.?vignette|gelapin.?pinggir|gelapin.?pinggirnya|gelapkan.?pinggir|gelapin.?tepi|pinggiran.?gelap|pinggir.?gelap|fokus.?tengah|fokus.?ke.?tengah|gelapin.?sudut)\b/.test(t)) ops.push({type:'vignette'});
+  if(/\b(bingkai.?emas|frame.?emas|bingkai.?gold|gold.?frame|frame.?gold|bingkai.?kuning.?emas)\b/.test(t)) ops.push({type:'frame', color:'gold'});
+  else if(/\b(bingkai.?hitam|frame.?hitam|black.?frame)\b/.test(t)) ops.push({type:'frame', color:'black'});
+  else if(/\b(bingkai.?putih|frame.?putih|white.?frame|polaroid|kayak.?polaroid|bikin.?polaroid|album.?foto|kasih.?frame|kasih.?bingkai|bingkai|bingkain|bikin.?bingkai|bikin.?frame|tambahkan.?bingkai|tambahkan.?frame)\b/.test(t)) ops.push({type:'frame', color:'white'});
+  if(/\b(grain|kasih.?grain|efek.?film|bikin.?kayak.?film|noise|kasih.?noise|analog|kasih.?analog|film.?jadul|efek.?kaset|tekstur.?film|tekstur.?jadul|tambahkan.?grain|tambahkan.?noise)\b/.test(t)) ops.push({type:'grain'});
+  if(/\b(soft.?glow|kasih.?glow|kasih.?glowing|bikin.?glow|bikin.?bersinar|bikin.?bercahaya|efek.?glow|efek.?bersinar|dreamy.?glow|kayak.?mimpi|dreamy|tambahkan.?glow)\b/.test(t)) ops.push({type:'glow'});
   if(/\b(tint.?pink|warna.?pink|nuansa.?pink|pink.?lembut|tint.?biru|nuansa.?biru|tint.?ungu|nuansa.?ungu|tint.?hijau|nuansa.?hijau|tint.?merah|nuansa.?merah|tint.?kuning|nuansa.?kuning|tint.?warna|kasih.?nuansa|kasih.?tint|tambahkan.?tint)\b/.test(t)){
     let color = 'pink';
     if(/\b(biru|blue)\b/.test(t)) color = 'blue';
@@ -1221,15 +990,9 @@ function parseCommands(text){
     else if(/\b(kuning|yellow)\b/.test(t)) color = 'yellow';
     ops.push({type:'tint', color});
   }
-  if(/\b(golden.?hour|jam.?emas|matahari.?terbenam|warna.?emas|emas.?keemasan|nuansa.?emas|nuansa.?keemasan)\b/.test(t)) {
-    ops.push({type:'filter', name:'warm'});
-    ops.push({type:'filter', name:'saturate'});
-    ops.push({type:'glow'});
-  }
-  if(/\b(mirror.?effect|efek.?mirror|efek.?pantulan|bikin.?simetris|simetris|pantulan|kayak.?cermin.?kiri.?kanan)\b/.test(t))
-    ops.push({type:'mirrorEffect'});
-  if(/\b(rounded|sudut.?bulat|bikin.?sudut.?bulat|corner.?bulat|round.?corner|bulatkan.?sudut)\b/.test(t))
-    ops.push({type:'rounded'});
+  if(/\b(golden.?hour|jam.?emas|matahari.?terbenam|warna.?emas|emas.?keemasan|nuansa.?emas|nuansa.?keemasan)\b/.test(t)) { ops.push({type:'filter', name:'warm'}); ops.push({type:'filter', name:'saturate'}); ops.push({type:'glow'}); }
+  if(/\b(mirror.?effect|efek.?mirror|efek.?pantulan|bikin.?simetris|simetris|pantulan|kayak.?cermin.?kiri.?kanan)\b/.test(t)) ops.push({type:'mirrorEffect'});
+  if(/\b(rounded|sudut.?bulat|bikin.?sudut.?bulat|corner.?bulat|round.?corner|bulatkan.?sudut)\b/.test(t)) ops.push({type:'rounded'});
   const rotMatch = t.match(/\b(putar|puter|diputar|memutar|rotate|rotasi|miring|miringin|dimiringin|miringkan|balik|balikin|dibalikin|pusing|dipusing|hadap|turn|belok|belokin)\b\s*(\d{1,3})?/);
   if(rotMatch){
     let deg = parseInt(rotMatch[2] || '90');
@@ -1239,10 +1002,8 @@ function parseCommands(text){
     else if(/\b(270)\b/.test(t)) deg = 270;
     ops.push({type:'rotate', deg});
   }
-  if(/\b(flip.?horizontal|cermin|cerminin|dicerminin|cerminkan|mirror|mirroring|dimirror|balik.?kiri.?kanan|balikin.?kiri.?kanan|refleksi.?horizontal|hadap.?cermin|kebalik.?kiri|horizontal)\b/.test(t))
-    ops.push({type:'flipH'});
-  if(/\b(flip.?vertical|balik.?atas.?bawah|balikin.?atas.?bawah|jungkir.?balik|jungkir.?balikin|terbalik.?atas|refleksi.?vertical|hadap.?bawah|vertical)\b/.test(t))
-    ops.push({type:'flipV'});
+  if(/\b(flip.?horizontal|cermin|cerminin|dicerminin|cerminkan|mirror|mirroring|dimirror|balik.?kiri.?kanan|balikin.?kiri.?kanan|refleksi.?horizontal|hadap.?cermin|kebalik.?kiri|horizontal)\b/.test(t)) ops.push({type:'flipH'});
+  if(/\b(flip.?vertical|balik.?atas.?bawah|balikin.?atas.?bawah|jungkir.?balik|jungkir.?balikin|terbalik.?atas|refleksi.?vertical|hadap.?bawah|vertical)\b/.test(t)) ops.push({type:'flipV'});
   if(/\b(crop|cropin|dicrop|potong|potongin|dipotong|pangkas|pangkasin|dipangkas|krop|kropin|dikrop|potongan|potong.?aja|pangkas.?aja)\b/.test(t)){
     let ratio = 'center';
     if(/\b(persegi|1.?1|square|kotak|kotakin|dikotakin|persegin|segi.?empat)\b/.test(t)) ratio = '1:1';
@@ -1259,9 +1020,7 @@ function parseCommands(text){
     ops.push({type:'resize', maxW});
   }
   const pctMatch = t.match(/(\d{1,3})\s*%/);
-  if(/\b(kompres|kompresi|perkecil|kecilkan|kecilin|turunin|kecil|turunkan|shrink)\b/.test(t) && pctMatch){
-    ops.push({type:'resizePct', pct:parseInt(pctMatch[1])});
-  }
+  if(/\b(kompres|kompresi|perkecil|kecilkan|kecilin|turunin|kecil|turunkan|shrink)\b/.test(t) && pctMatch) ops.push({type:'resizePct', pct:parseInt(pctMatch[1])});
   if(/\b(wm|watermark|tanda.?air|tandai|ditandai|kasih.?nama|kasih.?tanda|kasih.?tulisan|kasih.?teks|kasih.?caption|tulis.?nama|tulis.?tulisan|tulis.?teks|tulis.?caption|tambah.?tulisan|tambah.?teks|tambah.?nama|tambahin.?tulisan|bikin.?tulisan|bikin.?teks|beri.?tulisan|beri.?nama|cap|cap.?nama|label|labelin|dilabel|signature|tandatangan|tanda.?tangan|watermarking|tambahkan.?watermark|tambahkan.?tulisan|tambahkan.?teks)\b/.test(t)){
     let wmText = 'Alipp';
     const m1 = text.match(/(?:wm|watermark|tanda.?air|cap|label|tanda.?tangan|signature)\s+["']?([a-zA-Z0-9 _\-@#.]{1,30})["']?/i);
@@ -1375,10 +1134,7 @@ function opLabel(op){
   if(op.type==='resizePct') return `Perkecil ${op.pct}% 📏`;
   if(op.type==='watermark') return `Watermark "${op.text}" 💧`;
   if(op.type==='vignette') return 'Vignette 🌑';
-  if(op.type==='frame'){
-    const colors = {white:'Putih', black:'Hitam', gold:'Emas'};
-    return `Bingkai ${colors[op.color] || 'Putih'} 📷`;
-  }
+  if(op.type==='frame'){ const colors = {white:'Putih', black:'Hitam', gold:'Emas'}; return `Bingkai ${colors[op.color] || 'Putih'} 📷`; }
   if(op.type==='grain') return 'Grain Film 📼';
   if(op.type==='glow') return 'Soft Glow ✨';
   if(op.type==='tint') return `Tint ${op.color} 🎨`;
@@ -1390,11 +1146,7 @@ function opLabel(op){
 function findKB(text){
   const t = text.toLowerCase();
   let best = null, bestLen = 0;
-  for(const item of KB){
-    for(const k of item.keys){
-      if(t.includes(k) && k.length > bestLen){ best = item; bestLen = k.length; }
-    }
-  }
+  for(const item of KB){ for(const k of item.keys){ if(t.includes(k) && k.length > bestLen){ best = item; bestLen = k.length; } } }
   return best ? best.ans : null;
 }
 
@@ -1406,11 +1158,9 @@ async function sendChat(){
   const currentImg = chatImgData;
   chatInput.value = ''; chatInput.style.height = '36px';
   clearChatImg();
-
   addTyping();
   await new Promise(r=>setTimeout(r, 500 + Math.random()*500));
   removeTyping();
-
   if(currentImg){
     const ops = parseCommands(text);
     if(ops.length > 0){
@@ -1426,9 +1176,8 @@ async function sendChat(){
     }
   } else {
     const kbAns = findKB(text);
-    if(kbAns){
-      addChatMsg(kbAns, 'ai');
-    } else {
+    if(kbAns){ addChatMsg(kbAns, 'ai'); }
+    else {
       const ops = parseCommands(text);
       if(ops.length > 0){
         const labels = ops.map(opLabel).join(' + ');
@@ -1440,7 +1189,6 @@ async function sendChat(){
       }
     }
   }
-
   chatSend.disabled = false;
 }
 
@@ -1449,11 +1197,9 @@ function applyOpsToImg(dataUrl, ops){
   img.crossOrigin = 'anonymous';
   img.onload = ()=>{
     let baseCanvas = document.createElement('canvas');
-    baseCanvas.width = img.naturalWidth;
-    baseCanvas.height = img.naturalHeight;
+    baseCanvas.width = img.naturalWidth; baseCanvas.height = img.naturalHeight;
     let baseCtx = baseCanvas.getContext('2d');
     baseCtx.drawImage(img, 0, 0);
-
     const filterOps = ops.filter(o=>o.type==='filter');
     const rotateOps = ops.filter(o=>o.type==='rotate');
     const flipHOps = ops.filter(o=>o.type==='flipH');
@@ -1461,7 +1207,6 @@ function applyOpsToImg(dataUrl, ops){
     const cropOps = ops.filter(o=>o.type==='crop');
     const resizeOps = ops.filter(o=>o.type==='resize' || o.type==='resizePct');
     const wmOps = ops.filter(o=>o.type==='watermark');
-
     rotateOps.forEach(op=>{
       const rad = op.deg * Math.PI / 180;
       const cos = Math.abs(Math.cos(rad)), sin = Math.abs(Math.sin(rad));
@@ -1470,12 +1215,10 @@ function applyOpsToImg(dataUrl, ops){
       const nc = document.createElement('canvas');
       nc.width = nw; nc.height = nh;
       const nctx = nc.getContext('2d');
-      nctx.translate(nw/2, nh/2);
-      nctx.rotate(rad);
+      nctx.translate(nw/2, nh/2); nctx.rotate(rad);
       nctx.drawImage(baseCanvas, -baseCanvas.width/2, -baseCanvas.height/2);
       baseCanvas = nc;
     });
-
     if(flipHOps.length || flipVOps.length){
       const nc = document.createElement('canvas');
       nc.width = baseCanvas.width; nc.height = baseCanvas.height;
@@ -1485,7 +1228,6 @@ function applyOpsToImg(dataUrl, ops){
       nctx.drawImage(baseCanvas, 0, 0);
       baseCanvas = nc;
     }
-
     if(cropOps.length){
       const op = cropOps[cropOps.length-1];
       const srcW = baseCanvas.width, srcH = baseCanvas.height;
@@ -1502,7 +1244,6 @@ function applyOpsToImg(dataUrl, ops){
       nctx.drawImage(baseCanvas, sx, sy, cw, ch, 0, 0, cw, ch);
       baseCanvas = nc;
     }
-
     if(resizeOps.length){
       const op = resizeOps[resizeOps.length-1];
       let scale = 1;
@@ -1513,78 +1254,52 @@ function applyOpsToImg(dataUrl, ops){
         nc.width = Math.round(baseCanvas.width * scale);
         nc.height = Math.round(baseCanvas.height * scale);
         const nctx = nc.getContext('2d');
-        nctx.imageSmoothingEnabled = true;
-        nctx.imageSmoothingQuality = 'high';
+        nctx.imageSmoothingEnabled = true; nctx.imageSmoothingQuality = 'high';
         nctx.drawImage(baseCanvas, 0, 0, nc.width, nc.height);
         baseCanvas = nc;
       }
     }
-
     if(filterOps.length){
       const filterMap = {
-        hd:'contrast(1.3) saturate(1.4) brightness(1.1)',
-        anime:'contrast(1.5) saturate(2.2) brightness(1.15)',
-        bw:'grayscale(1) contrast(1.2)',
-        bright:'brightness(1.35) contrast(1.1) saturate(1.2)',
-        dark:'brightness(0.65) contrast(1.1)',
-        vintage:'sepia(.6) saturate(1.4) contrast(1.1) brightness(1.05)',
-        blur:'blur(4px) brightness(1.05)',
-        invert:'invert(1)',
-        warm:'sepia(.3) saturate(1.5) hue-rotate(-10deg) brightness(1.08)',
-        cool:'saturate(1.2) hue-rotate(20deg) brightness(1.05)',
-        desaturate:'saturate(0.3)',
-        saturate:'saturate(2) contrast(1.1)',
-        contrastUp:'contrast(1.5)',
-        contrastDown:'contrast(0.7)',
-        sharpen:'contrast(1.4) saturate(1.2) brightness(1.05)',
-        softskin:'blur(0.5px) brightness(1.05) saturate(1.1)',
-        sepia:'sepia(.8) contrast(1.1) brightness(1.05)',
-        tealorange:'contrast(1.3) saturate(1.4) hue-rotate(-15deg) brightness(1.05)',
-        vhs:'contrast(1.2) saturate(1.3) sepia(.3) hue-rotate(-5deg)',
-        hdr:'contrast(1.6) saturate(1.8) brightness(1.1)',
+        hd:'contrast(1.3) saturate(1.4) brightness(1.1)', anime:'contrast(1.5) saturate(2.2) brightness(1.15)',
+        bw:'grayscale(1) contrast(1.2)', bright:'brightness(1.35) contrast(1.1) saturate(1.2)',
+        dark:'brightness(0.65) contrast(1.1)', vintage:'sepia(.6) saturate(1.4) contrast(1.1) brightness(1.05)',
+        blur:'blur(4px) brightness(1.05)', invert:'invert(1)', warm:'sepia(.3) saturate(1.5) hue-rotate(-10deg) brightness(1.08)',
+        cool:'saturate(1.2) hue-rotate(20deg) brightness(1.05)', desaturate:'saturate(0.3)',
+        saturate:'saturate(2) contrast(1.1)', contrastUp:'contrast(1.5)', contrastDown:'contrast(0.7)',
+        sharpen:'contrast(1.4) saturate(1.2) brightness(1.05)', softskin:'blur(0.5px) brightness(1.05) saturate(1.1)',
+        sepia:'sepia(.8) contrast(1.1) brightness(1.05)', tealorange:'contrast(1.3) saturate(1.4) hue-rotate(-15deg) brightness(1.05)',
+        vhs:'contrast(1.2) saturate(1.3) sepia(.3) hue-rotate(-5deg)', hdr:'contrast(1.6) saturate(1.8) brightness(1.1)',
         lightleak:'brightness(1.15) saturate(1.3)'
       };
       const combined = filterOps.map(o=>filterMap[o.name] || '').filter(Boolean).join(' ');
       const nc = document.createElement('canvas');
       nc.width = baseCanvas.width; nc.height = baseCanvas.height;
       const nctx = nc.getContext('2d');
-      try{
-        nctx.filter = combined || 'none';
-        nctx.drawImage(baseCanvas, 0, 0);
-      }catch(err){
-        nctx.filter = 'none';
-        nctx.drawImage(baseCanvas, 0, 0);
-      }
+      try{ nctx.filter = combined || 'none'; nctx.drawImage(baseCanvas, 0, 0); }
+      catch(err){ nctx.filter = 'none'; nctx.drawImage(baseCanvas, 0, 0); }
       baseCanvas = nc;
     }
-
     if(ops.find(o=>o.type==='vignette')){
       const ctx = baseCanvas.getContext('2d');
       const w = baseCanvas.width, h = baseCanvas.height;
       const grd = ctx.createRadialGradient(w/2, h/2, Math.min(w,h)*0.3, w/2, h/2, Math.max(w,h)*0.75);
-      grd.addColorStop(0, 'rgba(0,0,0,0)');
-      grd.addColorStop(0.7, 'rgba(0,0,0,0.15)');
-      grd.addColorStop(1, 'rgba(0,0,0,0.6)');
-      ctx.fillStyle = grd;
-      ctx.fillRect(0, 0, w, h);
+      grd.addColorStop(0, 'rgba(0,0,0,0)'); grd.addColorStop(0.7, 'rgba(0,0,0,0.15)'); grd.addColorStop(1, 'rgba(0,0,0,0.6)');
+      ctx.fillStyle = grd; ctx.fillRect(0, 0, w, h);
     }
-
     const frameOp = ops.find(o=>o.type==='frame');
     if(frameOp){
       const w = baseCanvas.width, h = baseCanvas.height;
       const frameSize = Math.round(Math.min(w, h) * 0.05);
       const colors = { white:'#ffffff', black:'#000000', gold:'#d4af37' };
-      const frameColor = colors[frameOp.color] || '#ffffff';
       const nc = document.createElement('canvas');
-      nc.width = w + frameSize*2;
-      nc.height = h + frameSize*2;
+      nc.width = w + frameSize*2; nc.height = h + frameSize*2;
       const nctx = nc.getContext('2d');
-      nctx.fillStyle = frameColor;
+      nctx.fillStyle = colors[frameOp.color] || '#ffffff';
       nctx.fillRect(0, 0, nc.width, nc.height);
       nctx.drawImage(baseCanvas, frameSize, frameSize);
       baseCanvas = nc;
     }
-
     if(ops.find(o=>o.type==='grain')){
       const ctx = baseCanvas.getContext('2d');
       const w = baseCanvas.width, h = baseCanvas.height;
@@ -1592,13 +1307,12 @@ function applyOpsToImg(dataUrl, ops){
       const d = imgData.data;
       for(let i = 0; i < d.length; i += 4){
         const noise = (Math.random() - 0.5) * 40;
-        d[i]   = Math.max(0, Math.min(255, d[i]   + noise));
+        d[i] = Math.max(0, Math.min(255, d[i] + noise));
         d[i+1] = Math.max(0, Math.min(255, d[i+1] + noise));
         d[i+2] = Math.max(0, Math.min(255, d[i+2] + noise));
       }
       ctx.putImageData(imgData, 0, 0);
     }
-
     if(ops.find(o=>o.type==='glow')){
       const w = baseCanvas.width, h = baseCanvas.height;
       const nc = document.createElement('canvas');
@@ -1606,46 +1320,37 @@ function applyOpsToImg(dataUrl, ops){
       const nctx = nc.getContext('2d');
       nctx.filter = 'blur(20px) brightness(1.4) saturate(1.3)';
       nctx.drawImage(baseCanvas, 0, 0);
-      nctx.filter = 'none';
-      nctx.globalAlpha = 0.4;
+      nctx.filter = 'none'; nctx.globalAlpha = 0.4;
       nctx.drawImage(baseCanvas, 0, 0);
       nctx.globalAlpha = 1;
       baseCanvas = nc;
     }
-
     const tintOp = ops.find(o=>o.type==='tint');
     if(tintOp){
       const ctx = baseCanvas.getContext('2d');
       const w = baseCanvas.width, h = baseCanvas.height;
       const colors = {
-        pink:   'rgba(255, 182, 193, 0.25)',
-        blue:   'rgba(100, 150, 255, 0.25)',
-        purple: 'rgba(180, 120, 255, 0.25)',
-        green:  'rgba(120, 220, 150, 0.25)',
-        red:    'rgba(255, 100, 100, 0.25)',
-        yellow: 'rgba(255, 220, 100, 0.25)'
+        pink: 'rgba(255, 182, 193, 0.25)', blue: 'rgba(100, 150, 255, 0.25)',
+        purple: 'rgba(180, 120, 255, 0.25)', green: 'rgba(120, 220, 150, 0.25)',
+        red: 'rgba(255, 100, 100, 0.25)', yellow: 'rgba(255, 220, 100, 0.25)'
       };
       ctx.globalCompositeOperation = 'overlay';
       ctx.fillStyle = colors[tintOp.color] || colors.pink;
       ctx.fillRect(0, 0, w, h);
       ctx.globalCompositeOperation = 'source-over';
     }
-
     if(ops.find(o=>o.type==='mirrorEffect')){
       const w = baseCanvas.width, h = baseCanvas.height;
       const halfW = Math.floor(w/2);
       const nc = document.createElement('canvas');
       nc.width = w; nc.height = h;
       const nctx = nc.getContext('2d');
-      nctx.save();
-      nctx.translate(w, 0);
-      nctx.scale(-1, 1);
+      nctx.save(); nctx.translate(w, 0); nctx.scale(-1, 1);
       nctx.drawImage(baseCanvas, 0, 0, halfW, h, 0, 0, halfW, h);
       nctx.restore();
       nctx.drawImage(baseCanvas, 0, 0, halfW, h, 0, 0, halfW, h);
       baseCanvas = nc;
     }
-
     if(ops.find(o=>o.type==='rounded')){
       const w = baseCanvas.width, h = baseCanvas.height;
       const radius = Math.round(Math.min(w, h) * 0.08);
@@ -1653,21 +1358,14 @@ function applyOpsToImg(dataUrl, ops){
       nc.width = w; nc.height = h;
       const nctx = nc.getContext('2d');
       nctx.beginPath();
-      nctx.moveTo(radius, 0);
-      nctx.lineTo(w - radius, 0);
-      nctx.quadraticCurveTo(w, 0, w, radius);
-      nctx.lineTo(w, h - radius);
-      nctx.quadraticCurveTo(w, h, w - radius, h);
-      nctx.lineTo(radius, h);
-      nctx.quadraticCurveTo(0, h, 0, h - radius);
-      nctx.lineTo(0, radius);
-      nctx.quadraticCurveTo(0, 0, radius, 0);
-      nctx.closePath();
-      nctx.clip();
+      nctx.moveTo(radius, 0); nctx.lineTo(w - radius, 0); nctx.quadraticCurveTo(w, 0, w, radius);
+      nctx.lineTo(w, h - radius); nctx.quadraticCurveTo(w, h, w - radius, h);
+      nctx.lineTo(radius, h); nctx.quadraticCurveTo(0, h, 0, h - radius);
+      nctx.lineTo(0, radius); nctx.quadraticCurveTo(0, 0, radius, 0);
+      nctx.closePath(); nctx.clip();
       nctx.drawImage(baseCanvas, 0, 0);
       baseCanvas = nc;
     }
-
     if(wmOps.length){
       const op = wmOps[wmOps.length-1];
       const ctx = baseCanvas.getContext('2d');
@@ -1693,17 +1391,14 @@ function applyOpsToImg(dataUrl, ops){
         ctx.fillText(text, x, y);
       }
     }
-
     let out;
-    try{
-      out = baseCanvas.toDataURL('image/jpeg', 0.95);
-    }catch(err){
+    try{ out = baseCanvas.toDataURL('image/jpeg', 0.95); }
+    catch(err){
       const fc = document.createElement('canvas');
       fc.width = img.naturalWidth; fc.height = img.naturalHeight;
       fc.getContext('2d').drawImage(img, 0, 0);
       out = fc.toDataURL('image/jpeg', 0.95);
     }
-
     const labels = ops.map(opLabel).join(' + ');
     const resultBox = document.createElement('div');
     resultBox.className = 'chatMsg ai';
